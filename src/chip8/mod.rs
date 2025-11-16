@@ -1,8 +1,11 @@
+use fastrand;
+
 #[derive(Debug)]
 pub struct Chip8 {
     registers: Registers,
     memory: [u8; 4096],
     keys: u16,
+    wait_for_keys: bool,
 }
 
 #[derive(Debug)]
@@ -10,7 +13,7 @@ struct Registers {
     general: [u8; 16],
     pointer: u16,
     program_counter: u16,
-    stack_pointer: u8,
+    stack_pointer: u16,
     delay_timer: u8,
     sound_timer: u8,
 }
@@ -18,7 +21,7 @@ struct Registers {
 #[derive(Debug)]
 enum Instruction {
     Unknown,
-    ClearScreen,
+    ClearDisplay,
     Return,
     Jump { addr: u16 },
     Call { addr: u16 },
@@ -54,6 +57,22 @@ enum Instruction {
     ReadRegFromPointer { x: u8 },
 }
 
+fn get_bytes(word: u16) -> (u8, u8) {
+    return (
+        (word >> 8).try_into().unwrap(),
+        (word & 0xFF).try_into().unwrap(),
+    );
+}
+
+fn get_nibbles(byte: u8) -> (u8, u8) {
+    return (byte >> 4, byte & 0xF);
+}
+
+/// Combine two bytes into a 12 bit address. This drops the high 4 bits of byte1.
+fn make_addr(byte1: u8, byte2: u8) -> u16 {
+    return ((byte1 & 0xF) as u16) << 8 | (byte2 as u16);
+}
+
 impl Chip8 {
     pub fn new() -> Self {
         Self {
@@ -67,6 +86,7 @@ impl Chip8 {
             },
             memory: [0; 4096],
             keys: 0,
+            wait_for_keys: false,
         }
     }
 
@@ -92,14 +112,12 @@ impl Chip8 {
         let byte2 = self.memory[(self.registers.program_counter + 1) as usize];
         self.registers.program_counter += 2;
 
-        let nibble1 = byte1 >> 4;
-        let nibble2 = byte1 & 0xF;
-        let nibble3 = byte2 >> 4;
-        let nibble4 = byte2 & 0xF;
-        let addr = (nibble2 as u16) << 8 | (byte2 as u16);
+        let addr = make_addr(byte1, byte2);
+        let (nibble1, nibble2) = get_nibbles(byte1);
+        let (nibble3, nibble4) = get_nibbles(byte2);
 
         match (nibble1, nibble2, nibble3, nibble4) {
-            (0x0, 0x0, 0xE, 0x0) => Instruction::ClearScreen,
+            (0x0, 0x0, 0xE, 0x0) => Instruction::ClearDisplay,
             (0x0, 0x0, 0xE, 0xE) => Instruction::Return,
             (0x1, _, _, _) => Instruction::Jump { addr },
             (0x2, _, _, _) => Instruction::Call { addr },
@@ -182,4 +200,164 @@ impl Chip8 {
             _ => Instruction::Unknown,
         }
     }
+
+    fn execute_instruction(&mut self, instruction: Instruction) -> () {
+        match instruction {
+            Instruction::ClearDisplay => {
+                for i in 0..Self::DISPLAY_BYTES {
+                    self.memory[Self::DSPLAY_MEM_ADDR + i] = 0;
+                }
+            }
+            Instruction::Return => {
+                self.registers.program_counter = self.registers.stack_pointer;
+                self.registers.stack_pointer -= 1;
+            }
+            Instruction::Jump { addr } => {
+                self.registers.program_counter = addr;
+            }
+            Instruction::Call { addr } => {
+                self.registers.stack_pointer += 1;
+                let (byte1, byte2) = get_bytes(self.registers.program_counter);
+                self.memory[self.registers.stack_pointer as usize] = byte1;
+                self.memory[self.registers.stack_pointer as usize] = byte2;
+                self.registers.program_counter = addr;
+            }
+            Instruction::SkipRegEqualsImm { x, byte } => {
+                if self.registers.general[x as usize] == byte {
+                    self.registers.program_counter += 2;
+                }
+            }
+            Instruction::SkipRegNotEqualsImm { x, byte } => {
+                if self.registers.general[x as usize] != byte {
+                    self.registers.program_counter += 2;
+                }
+            }
+            Instruction::SkipRegEqualsReg { x, y } => {
+                if self.registers.general[x as usize] == self.registers.general[y as usize] {
+                    self.registers.program_counter += 2;
+                }
+            }
+            Instruction::LoadImmToReg { x, byte } => {
+                self.registers.general[x as usize] = byte;
+            }
+            Instruction::AddImmToReg { x, byte } => {
+                self.registers.general[x as usize] += byte;
+            }
+            Instruction::LoadRegToReg { x, y } => {
+                self.registers.general[x as usize] = self.registers.general[y as usize];
+            }
+            Instruction::OrReg { x, y } => {
+                self.registers.general[x as usize] |= self.registers.general[y as usize];
+            }
+            Instruction::AndReg { x, y } => {
+                self.registers.general[x as usize] &= self.registers.general[y as usize];
+            }
+            Instruction::XorReg { x, y } => {
+                self.registers.general[x as usize] ^= self.registers.general[y as usize];
+            }
+            Instruction::AddReg { x, y } => {
+                self.registers.general[x as usize] += self.registers.general[y as usize];
+            }
+            Instruction::SubReg { x, y } => {
+                self.registers.general[x as usize] -= self.registers.general[y as usize];
+            }
+            Instruction::ShiftRight { x } => {
+                self.registers.general[0xF] = self.registers.general[x as usize] & 0x1;
+                self.registers.general[x as usize] >>= 1;
+            }
+            Instruction::SubNegReg { x, y } => {
+                self.registers.general[0xF] =
+                    if self.registers.general[y as usize] > self.registers.general[x as usize] {
+                        1
+                    } else {
+                        0
+                    };
+                self.registers.general[x as usize] =
+                    self.registers.general[y as usize] - self.registers.general[x as usize];
+            }
+            Instruction::ShiftLeft { x } => {
+                self.registers.general[0xF] = if self.registers.general[x as usize] & 0x80 > 0 {
+                    1
+                } else {
+                    0
+                };
+                self.registers.general[x as usize] <<= 1;
+            }
+            Instruction::SkipRegNotEqualsReg { x, y } => {
+                if self.registers.general[x as usize] != self.registers.general[y as usize] {
+                    self.registers.program_counter += 2;
+                }
+            }
+            Instruction::LoadImmToPointer { addr } => {
+                self.registers.pointer = addr;
+            }
+            Instruction::JumpOffset { addr } => {
+                self.registers.program_counter = (self.registers.general[0] as u16) + addr;
+            }
+            Instruction::Random { x, byte } => {
+                self.registers.general[x as usize] = fastrand::u8(0..=u8::MAX) & byte;
+            }
+            Instruction::Draw { x, y, nibble } => {
+                todo!();
+            }
+            Instruction::SkipKeyPressed { x } => {
+                if self.keys & (1 << self.registers.general[x as usize]) > 0 {
+                    self.registers.program_counter += 2;
+                }
+            }
+            Instruction::SkipNotKeyPressed { x } => {
+                if self.keys & (1 << self.registers.general[x as usize]) == 0 {
+                    self.registers.program_counter += 2;
+                }
+            }
+            Instruction::LoadDelayTimerToReg { x } => {
+                self.registers.general[x as usize] = self.registers.delay_timer;
+            }
+            Instruction::LoadNextKeyPress { x } => {
+                self.wait_for_keys = true;
+            }
+            Instruction::LoadRegToDelayTimer { x } => {
+                self.registers.delay_timer = self.registers.general[x as usize];
+            }
+            Instruction::LoadRegToSoundTimer { x } => {
+                self.registers.sound_timer = self.registers.general[x as usize];
+            }
+            Instruction::AddRegToPointer { x } => {
+                self.registers.pointer += self.registers.general[x as usize] as u16;
+            }
+            Instruction::LoadDigitSpriteToPointer { x } => {
+                self.registers.pointer =
+                    Self::DIGIT_SPRITES_MEM_ADDR + 5 * (self.registers.general[x as usize] as u16)
+            }
+            Instruction::LoadDecimalDigitsToPointer { x } => {
+                let ones = x % 10;
+                let tens = (x / 10) % 10;
+                let hundreds = (x / 100) % 10;
+
+                self.memory[self.registers.pointer as usize] = hundreds;
+                self.memory[(self.registers.pointer + 1) as usize] = tens;
+                self.memory[(self.registers.pointer + 2) as usize] = ones;
+            }
+            Instruction::WriteRegToPointer { x } => {
+                for i in 0..=(x as u16) {
+                    self.memory[(self.registers.pointer + i) as usize] =
+                        self.registers.general[i as usize];
+                }
+            }
+            Instruction::ReadRegFromPointer { x } => {
+                for i in 0..=(x as u16) {
+                    self.registers.general[i as usize] =
+                        self.memory[(self.registers.pointer + i) as usize];
+                }
+            }
+            Instruction::Unknown => todo!(),
+        }
+    }
+
+    const DIGIT_SPRITES_MEM_ADDR: u16 = 0x0;
+    const DISPLAY_BYTES: usize = (Self::DISPLAY_PIXELS_X * Self::DISPLAY_PIXELS_Y + 7) >> 3;
+    const DISPLAY_PIXELS_X: usize = 64;
+    const DISPLAY_PIXELS_Y: usize = 32;
+    const DSPLAY_MEM_ADDR: usize = 0x0;
+    const PROGRAM_MEM_ADDR: usize = 0x200;
 }
