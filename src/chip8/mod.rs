@@ -57,6 +57,14 @@ enum Instruction {
     ReadRegFromPointer { x: u8 },
 }
 
+pub const DISPLAY_PIXELS_X: usize = 64;
+pub const DISPLAY_PIXELS_Y: usize = 32;
+
+const DIGIT_SPRITES_MEM_ADDR: u16 = 0x0;
+const DISPLAY_BYTES: usize = (DISPLAY_PIXELS_X * DISPLAY_PIXELS_Y + 7) >> 3;
+const DISPLAY_MEM_ADDR: usize = 0x0;
+const PROGRAM_MEM_ADDR: usize = 0x200;
+
 fn get_bytes(word: u16) -> (u8, u8) {
     return (
         (word >> 8).try_into().unwrap(),
@@ -88,6 +96,10 @@ impl Chip8 {
             keys: 0,
             wait_for_keys: false,
         }
+    }
+
+    pub fn get_display(&self) -> &[u8] {
+        &self.memory[DISPLAY_MEM_ADDR..DISPLAY_MEM_ADDR + DISPLAY_BYTES]
     }
 
     pub fn tick_timers(&mut self) -> () {
@@ -204,8 +216,8 @@ impl Chip8 {
     fn execute_instruction(&mut self, instruction: Instruction) -> () {
         match instruction {
             Instruction::ClearDisplay => {
-                for i in 0..Self::DISPLAY_BYTES {
-                    self.memory[Self::DSPLAY_MEM_ADDR + i] = 0;
+                for i in 0..DISPLAY_BYTES {
+                    self.memory[DISPLAY_MEM_ADDR + i] = 0;
                 }
             }
             Instruction::Return => {
@@ -327,7 +339,7 @@ impl Chip8 {
             }
             Instruction::LoadDigitSpriteToPointer { x } => {
                 self.registers.pointer =
-                    Self::DIGIT_SPRITES_MEM_ADDR + 5 * (self.registers.general[x as usize] as u16)
+                    DIGIT_SPRITES_MEM_ADDR + 5 * (self.registers.general[x as usize] as u16)
             }
             Instruction::LoadDecimalDigitsToPointer { x } => {
                 let ones = x % 10;
@@ -353,11 +365,4 @@ impl Chip8 {
             Instruction::Unknown => todo!(),
         }
     }
-
-    const DIGIT_SPRITES_MEM_ADDR: u16 = 0x0;
-    const DISPLAY_BYTES: usize = (Self::DISPLAY_PIXELS_X * Self::DISPLAY_PIXELS_Y + 7) >> 3;
-    const DISPLAY_PIXELS_X: usize = 64;
-    const DISPLAY_PIXELS_Y: usize = 32;
-    const DSPLAY_MEM_ADDR: usize = 0x0;
-    const PROGRAM_MEM_ADDR: usize = 0x200;
 }
