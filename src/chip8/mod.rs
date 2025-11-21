@@ -20,7 +20,7 @@ struct Registers {
 
 #[derive(Debug)]
 enum Instruction {
-    Unknown,
+    Unknown { byte1: u8, byte2: u8 },
     ClearDisplay,
     Return,
     Jump { addr: u16 },
@@ -56,13 +56,31 @@ enum Instruction {
     WriteRegToPointer { x: u8 },
     ReadRegFromPointer { x: u8 },
 }
+const DIGIT_SPRITES: [u8; 80] = [
+    0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
+    0x20, 0x60, 0x20, 0x20, 0x70, // 1
+    0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
+    0xF0, 0x10, 0xF0, 0x10, 0xF0, // 3
+    0x90, 0x90, 0xF0, 0x10, 0x10, // 4
+    0xF0, 0x80, 0xF0, 0x10, 0xF0, // 5
+    0xF0, 0x80, 0xF0, 0x90, 0xF0, // 6
+    0xF0, 0x10, 0x20, 0x40, 0x40, // 7
+    0xF0, 0x90, 0xF0, 0x90, 0xF0, // 8
+    0xF0, 0x90, 0xF0, 0x10, 0xF0, // 9
+    0xF0, 0x90, 0xF0, 0x90, 0x90, // A
+    0xE0, 0x90, 0xE0, 0x90, 0xE0, // B
+    0xF0, 0x80, 0x80, 0x80, 0xF0, // C
+    0xE0, 0x90, 0x90, 0x90, 0xE0, // D
+    0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
+    0xF0, 0x80, 0xF0, 0x80, 0x80, // F
+];
 
 pub const DISPLAY_PIXELS_X: usize = 64;
 pub const DISPLAY_PIXELS_Y: usize = 32;
 
-const DIGIT_SPRITES_MEM_ADDR: u16 = 0x0;
+const DIGIT_SPRITES_MEM_ADDR: usize = 0x0;
 const DISPLAY_BYTES: usize = (DISPLAY_PIXELS_X * DISPLAY_PIXELS_Y + 7) >> 3;
-const DISPLAY_MEM_ADDR: usize = 0x0;
+const DISPLAY_MEM_ADDR: usize = DIGIT_SPRITES.len();
 const PROGRAM_MEM_ADDR: usize = 0x200;
 
 fn get_bytes(word: u16) -> (u8, u8) {
@@ -81,6 +99,14 @@ fn make_addr(byte1: u8, byte2: u8) -> u16 {
     return ((byte1 & 0xF) as u16) << 8 | (byte2 as u16);
 }
 
+/// @return the (byte, bit) to index into display memory.
+fn get_display_bit(x: u8, y: u8) -> (usize, usize) {
+    let bit = DISPLAY_PIXELS_X * (y as usize) + (x as usize);
+    let byte_index = bit >> 3;
+    let bit_index = 7 - (bit & 0x7);
+    return (byte_index, bit_index);
+}
+
 impl Chip8 {
     pub fn new() -> Self {
         Self {
@@ -95,6 +121,23 @@ impl Chip8 {
             memory: [0; 4096],
             keys: 0,
             wait_for_keys: false,
+        }
+    }
+
+    pub fn initialize(&mut self, program: &[u8]) {
+        for i in 0..DIGIT_SPRITES.len() {
+            self.memory[DIGIT_SPRITES_MEM_ADDR + i] = DIGIT_SPRITES[i];
+        }
+        for i in 0..program.len() {
+            self.memory[PROGRAM_MEM_ADDR + i] = program[i];
+        }
+        self.registers.program_counter = PROGRAM_MEM_ADDR as u16;
+        while (self.registers.program_counter as usize) >= PROGRAM_MEM_ADDR
+            && (self.registers.program_counter as usize) < PROGRAM_MEM_ADDR + program.len()
+        {
+            let instruction = self.fetch_instruction();
+            println!("Fetched instruction {:?}", instruction);
+            self.execute_instruction(instruction);
         }
     }
 
@@ -209,7 +252,7 @@ impl Chip8 {
             (0xF, _, 0x3, 0x3) => Instruction::LoadDecimalDigitsToPointer { x: nibble2 },
             (0xF, _, 0x5, 0x5) => Instruction::WriteRegToPointer { x: nibble2 },
             (0xF, _, 0x6, 0x5) => Instruction::ReadRegFromPointer { x: nibble2 },
-            _ => Instruction::Unknown,
+            _ => Instruction::Unknown { byte1, byte2 },
         }
     }
 
@@ -310,7 +353,25 @@ impl Chip8 {
                 self.registers.general[x as usize] = fastrand::u8(0..=u8::MAX) & byte;
             }
             Instruction::Draw { x, y, nibble } => {
-                todo!();
+                let mut erase = false;
+                for i in 0..nibble {
+                    for j in 0..8 {
+                        let sprite_bit = (self.memory
+                            [(self.registers.pointer as usize) + (i as usize)]
+                            >> (7 - j))
+                            & 1;
+                        let col = self.registers.general[x as usize] + j;
+                        let row = self.registers.general[y as usize] + i;
+                        let (display_byte, display_bit) = get_display_bit(col, row);
+                        let before = self.memory[DISPLAY_MEM_ADDR + display_byte];
+                        self.memory[DISPLAY_MEM_ADDR + display_byte] ^= sprite_bit << display_bit;
+                        let after = self.memory[DISPLAY_MEM_ADDR + display_byte];
+                        if before > after {
+                            erase = true;
+                        }
+                    }
+                }
+                self.registers.general[0xF] = if erase { 1 } else { 0 };
             }
             Instruction::SkipKeyPressed { x } => {
                 if self.keys & (1 << self.registers.general[x as usize]) > 0 {
@@ -338,8 +399,9 @@ impl Chip8 {
                 self.registers.pointer += self.registers.general[x as usize] as u16;
             }
             Instruction::LoadDigitSpriteToPointer { x } => {
-                self.registers.pointer =
-                    DIGIT_SPRITES_MEM_ADDR + 5 * (self.registers.general[x as usize] as u16)
+                self.registers.pointer = (DIGIT_SPRITES_MEM_ADDR
+                    + 5 * (self.registers.general[x as usize] as usize))
+                    as u16;
             }
             Instruction::LoadDecimalDigitsToPointer { x } => {
                 let ones = x % 10;
@@ -362,7 +424,9 @@ impl Chip8 {
                         self.memory[(self.registers.pointer + i) as usize];
                 }
             }
-            Instruction::Unknown => todo!(),
+            Instruction::Unknown { byte1, byte2 } => {
+                panic!("Unknown instruction {:x} {:x}", byte1, byte2)
+            }
         }
     }
 }
