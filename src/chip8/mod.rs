@@ -136,7 +136,6 @@ impl Chip8 {
             && (self.registers.program_counter as usize) < PROGRAM_MEM_ADDR + program.len()
         {
             let instruction = self.fetch_instruction();
-            println!("Fetched instruction {:?}", instruction);
             self.execute_instruction(instruction);
         }
     }
@@ -430,3 +429,6 @@ impl Chip8 {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;
