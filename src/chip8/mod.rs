@@ -313,6 +313,11 @@ impl Chip8 {
                 self.registers.general[x as usize] += self.registers.general[y as usize];
             }
             Instruction::SubReg { x, y } => {
+                self.registers.general[0xF] =
+                    match self.registers.general[x as usize] > self.registers.general[y as usize] {
+                        true => 1,
+                        false => 0,
+                    };
                 self.registers.general[x as usize] -= self.registers.general[y as usize];
             }
             Instruction::ShiftRight { x } => {
@@ -321,19 +326,17 @@ impl Chip8 {
             }
             Instruction::SubNegReg { x, y } => {
                 self.registers.general[0xF] =
-                    if self.registers.general[y as usize] > self.registers.general[x as usize] {
-                        1
-                    } else {
-                        0
+                    match self.registers.general[y as usize] > self.registers.general[x as usize] {
+                        true => 1,
+                        false => 0,
                     };
                 self.registers.general[x as usize] =
                     self.registers.general[y as usize] - self.registers.general[x as usize];
             }
             Instruction::ShiftLeft { x } => {
-                self.registers.general[0xF] = if self.registers.general[x as usize] & 0x80 > 0 {
-                    1
-                } else {
-                    0
+                self.registers.general[0xF] = match self.registers.general[x as usize] & 0x80 {
+                    0 => 0,
+                    _ => 1,
                 };
                 self.registers.general[x as usize] <<= 1;
             }

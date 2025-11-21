@@ -25,10 +25,9 @@ impl TerminalPlayer {
                 let pixel = i * DISPLAY_PIXELS_X + j;
                 let byte = pixel >> 3;
                 let bit = 7 - (pixel & 0x7);
-                let char = if display_data[byte] & (1 << bit) == 0 {
-                    '.'
-                } else {
-                    'X'
+                let char = match display_data[byte] & (1 << bit) {
+                    0 => '.',
+                    _ => 'X',
                 };
                 line.push(char);
             }
