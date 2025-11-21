@@ -12,8 +12,9 @@ impl TerminalPlayer {
     }
 
     pub fn run(&mut self) {
-        let program: [u8; 0] = [];
+        let program: [u8; 2] = [0x00, 0xFD];
         self.chip8.initialize(&program);
+        while !self.chip8.run_next_instruction() {}
         self.print_display();
     }
 

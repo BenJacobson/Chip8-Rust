@@ -6,6 +6,7 @@ pub struct Chip8 {
     memory: [u8; 4096],
     keys: u16,
     wait_for_keys: bool,
+    exit: bool,
 }
 
 #[derive(Debug)]
@@ -23,6 +24,7 @@ enum Instruction {
     Unknown { byte1: u8, byte2: u8 },
     ClearDisplay,
     Return,
+    Exit,
     Jump { addr: u16 },
     Call { addr: u16 },
     SkipRegEqualsImm { x: u8, byte: u8 },
@@ -121,6 +123,7 @@ impl Chip8 {
             memory: [0; 4096],
             keys: 0,
             wait_for_keys: false,
+            exit: false,
         }
     }
 
@@ -132,12 +135,16 @@ impl Chip8 {
             self.memory[PROGRAM_MEM_ADDR + i] = program[i];
         }
         self.registers.program_counter = PROGRAM_MEM_ADDR as u16;
-        while (self.registers.program_counter as usize) >= PROGRAM_MEM_ADDR
-            && (self.registers.program_counter as usize) < PROGRAM_MEM_ADDR + program.len()
-        {
-            let instruction = self.fetch_instruction();
-            self.execute_instruction(instruction);
+    }
+
+    pub fn run_next_instruction(&mut self) -> bool {
+        if self.exit {
+            return true;
         }
+
+        let instruction = self.fetch_instruction();
+        self.execute_instruction(instruction);
+        return self.exit;
     }
 
     pub fn get_display(&self) -> &[u8] {
@@ -173,6 +180,7 @@ impl Chip8 {
         match (nibble1, nibble2, nibble3, nibble4) {
             (0x0, 0x0, 0xE, 0x0) => Instruction::ClearDisplay,
             (0x0, 0x0, 0xE, 0xE) => Instruction::Return,
+            (0x0, 0x0, 0xF, 0xD) => Instruction::Exit,
             (0x1, _, _, _) => Instruction::Jump { addr },
             (0x2, _, _, _) => Instruction::Call { addr },
             (0x3, _, _, _) => Instruction::SkipRegEqualsImm {
@@ -265,6 +273,9 @@ impl Chip8 {
             Instruction::Return => {
                 self.registers.program_counter = self.registers.stack_pointer;
                 self.registers.stack_pointer -= 1;
+            }
+            Instruction::Exit => {
+                self.exit = true;
             }
             Instruction::Jump { addr } => {
                 self.registers.program_counter = addr;
@@ -427,7 +438,7 @@ impl Chip8 {
                 }
             }
             Instruction::Unknown { byte1, byte2 } => {
-                panic!("Unknown instruction {:x} {:x}", byte1, byte2)
+                panic!("Unknown instruction {:X} {:X}", byte1, byte2)
             }
         }
     }

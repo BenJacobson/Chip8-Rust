@@ -1,6 +1,6 @@
 use super::*;
 
-static RENDER_DIGITS_PROGRAM: [u8; 160] = [
+static RENDER_DIGITS_PROGRAM: [u8; 162] = [
     // 0
     0x60, 0x00, // Load register v0=0
     0xF0, 0x29, // LoadDigitSpriteToPointer v0=0
@@ -97,6 +97,8 @@ static RENDER_DIGITS_PROGRAM: [u8; 160] = [
     0x61, 0x0F, // Load register v1=15
     0x62, 0x12, // Load register v2=0x12
     0xD1, 0x25, // Draw a 5 byte sprite at v1=15, v2=0x12
+    // Exit
+    0x00, 0xFD, // Exit
 ];
 
 static RENDER_DIGITS_DISPLAY: &str = "
@@ -138,6 +140,7 @@ XXXX.XXX..XXXX.X................................................
 fn test_render_digits() {
     let mut chip8 = Chip8::new();
     chip8.initialize(&RENDER_DIGITS_PROGRAM);
+    while !chip8.run_next_instruction() {}
     let display: Vec<bool> = chip8
         .get_display()
         .iter()
