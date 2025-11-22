@@ -1,4 +1,4 @@
-use super::*;
+use super::processor::*;
 
 static RENDER_DIGITS_PROGRAM: [u8; 162] = [
     // 0
@@ -138,10 +138,10 @@ XXXX.XXX..XXXX.X................................................
 
 #[test]
 fn test_render_digits() {
-    let mut chip8 = Chip8::new();
-    chip8.initialize(&RENDER_DIGITS_PROGRAM);
-    while !chip8.run_next_instruction() {}
-    let display: Vec<bool> = chip8
+    let mut processor = Processor::new();
+    processor.initialize(&RENDER_DIGITS_PROGRAM);
+    while !processor.run_next_instruction() {}
+    let display: Vec<bool> = processor
         .get_display()
         .iter()
         .map(|byte| (0..8).rev().map(|bit| *byte & (1 << bit) != 0))
