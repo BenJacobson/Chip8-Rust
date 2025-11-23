@@ -141,20 +141,20 @@ fn test_render_digits() {
     let mut processor = Processor::new();
     processor.initialize(&RENDER_DIGITS_PROGRAM);
     while !processor.run_next_instruction() {}
-    let display: Vec<bool> = processor
-        .get_display()
-        .iter()
-        .map(|byte| (0..8).rev().map(|bit| *byte & (1 << bit) != 0))
+    let display = processor.get_display();
+    let display_data: Vec<bool> = (0..display.height)
+        .map(|i| (0..display.width).map(move |j| (i, j)))
         .flatten()
+        .map(|(i, j)| display.get_pixel(i, j))
         .collect();
 
-    let expected_display: Vec<bool> = RENDER_DIGITS_DISPLAY
+    let expected_display_data: Vec<bool> = RENDER_DIGITS_DISPLAY
         .chars()
         .filter(|c| !c.is_whitespace())
         .map(|c| c != '.')
         .collect();
-    assert_eq!(expected_display.len(), display.len());
-    for (expected_bit, display_bit) in expected_display.into_iter().zip(display) {
+    assert_eq!(expected_display_data.len(), display_data.len());
+    for (expected_bit, display_bit) in expected_display_data.into_iter().zip(display_data) {
         assert_eq!(expected_bit, display_bit);
     }
 }

@@ -1,4 +1,5 @@
 use super::bit_manipulation::*;
+use super::display::*;
 use super::instructions::*;
 
 use fastrand;
@@ -41,12 +42,11 @@ const DIGIT_SPRITES: [u8; 80] = [
     0xF0, 0x80, 0xF0, 0x80, 0x80, // F
 ];
 
-pub const DISPLAY_PIXELS_X: usize = 64;
-pub const DISPLAY_PIXELS_Y: usize = 32;
-
 const DIGIT_SPRITES_MEM_ADDR: usize = 0x0;
 const DISPLAY_BYTES: usize = (DISPLAY_PIXELS_X * DISPLAY_PIXELS_Y + 7) >> 3;
 const DISPLAY_MEM_ADDR: usize = DIGIT_SPRITES.len();
+const DISPLAY_PIXELS_X: usize = 64;
+const DISPLAY_PIXELS_Y: usize = 32;
 const PROGRAM_MEM_ADDR: usize = 0x200;
 
 /// @return the (byte, bit) to index into display memory.
@@ -98,8 +98,9 @@ impl Processor {
         return self.exit;
     }
 
-    pub fn get_display(&self) -> &[u8] {
-        &self.memory[DISPLAY_MEM_ADDR..DISPLAY_MEM_ADDR + DISPLAY_BYTES]
+    pub fn get_display(&self) -> Display<'_> {
+        let data = &self.memory[DISPLAY_MEM_ADDR..DISPLAY_MEM_ADDR + DISPLAY_BYTES];
+        Display::new(data, DISPLAY_PIXELS_X, DISPLAY_PIXELS_Y)
     }
 
     pub fn tick_timers(&mut self) -> () {
