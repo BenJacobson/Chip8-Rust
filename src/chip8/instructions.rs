@@ -1,6 +1,6 @@
 use super::bit_manipulation::*;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Instruction {
     Unknown { byte1: u8, byte2: u8 },
     ClearDisplay,

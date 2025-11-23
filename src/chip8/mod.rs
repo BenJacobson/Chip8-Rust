@@ -6,4 +6,10 @@ mod instructions;
 pub use processor::Processor as Chip8;
 
 #[cfg(test)]
+mod test_display;
+
+#[cfg(test)]
+mod test_instructions;
+
+#[cfg(test)]
 mod test_processor;

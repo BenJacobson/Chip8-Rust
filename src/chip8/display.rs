@@ -6,6 +6,7 @@ pub struct Display<'a> {
 
 impl<'a> Display<'a> {
     pub fn new(data: &'a [u8], width: usize, height: usize) -> Self {
+        assert_eq!((width * height + 7) / 8, data.len());
         Self {
             data,
             width,

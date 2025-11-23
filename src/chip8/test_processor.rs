@@ -158,3 +158,10 @@ fn test_render_digits() {
         assert_eq!(expected_bit, display_bit);
     }
 }
+
+#[test]
+#[should_panic]
+fn test_uninitialized_execution_panics() {
+    let mut processor = Processor::new();
+    while !processor.run_next_instruction() {}
+}
