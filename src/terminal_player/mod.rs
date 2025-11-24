@@ -40,7 +40,7 @@ impl TerminalPlayer {
             .map(|i| {
                 (0..display.width)
                     .map(|j| display.get_pixel(i, j))
-                    .map(|set| if set { 'X' } else { '.' })
+                    .map(|set| if set { '█' } else { '⠀' })
                     .collect::<String>()
             })
             .chain(["\n".to_string()])
