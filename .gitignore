@@ -1,3 +1,4 @@
+**/*.log
 /programs/bin
 /target
 notes.txt

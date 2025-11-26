@@ -1,5 +1,9 @@
 mod chip8;
 mod terminal_player;
+mod logger;
+
+use logger::file_logger;
+use logger::Logger;
 
 use std::env;
 use std::fs;
@@ -11,7 +15,9 @@ fn main() {
         return;
     }
 
-    let chip8 = chip8::Chip8::new();
+    let mut logger: Logger = file_logger::from_env_args();
+    logger.log("Starting execution");
+    let chip8 = chip8::Chip8::new(logger);
     let mut terminal_player = terminal_player::TerminalPlayer::new(chip8);
     let filepath = args[1].as_str();
     let program = fs::read(filepath).expect(format!("Failed to open file: {}", filepath).as_str());

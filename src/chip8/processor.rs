@@ -1,11 +1,13 @@
 use super::bit_manipulation::*;
 use super::display::*;
 use super::instructions::*;
+use crate::logger::Logger;
 
 use fastrand;
 
 #[derive(Debug)]
 pub struct Processor {
+    logger: Logger,
     registers: Registers,
     memory: [u8; 4096],
     keys: u16,
@@ -58,8 +60,9 @@ fn get_display_bit(x: u8, y: u8) -> (usize, usize) {
 }
 
 impl Processor {
-    pub fn new() -> Self {
+    pub fn new(logger: Logger) -> Self {
         Self {
+            logger,
             registers: Registers {
                 general: [0; 16],
                 pointer: 0,
@@ -92,13 +95,21 @@ impl Processor {
 
         let byte1 = self.memory[self.registers.program_counter as usize];
         let byte2 = self.memory[(self.registers.program_counter + 1) as usize];
-        self.registers.program_counter += 2;
         let instruction = decode_instruction(byte1, byte2);
+        self.logger.log(
+            format!(
+                "0x{:x}: Executing instruction: {:?}",
+                self.registers.program_counter, instruction
+            )
+            .as_str(),
+        );
+        self.registers.program_counter += 2;
+
         self.execute_instruction(instruction);
         return self.exit;
     }
 
-    pub fn get_display(&self) -> Display<'_> {
+    pub fn get_display<'a>(&'a self) -> Display<'a> {
         let data = &self.memory[DISPLAY_MEM_ADDR..DISPLAY_MEM_ADDR + DISPLAY_BYTES];
         Display::new(data, DISPLAY_PIXELS_X, DISPLAY_PIXELS_Y)
     }
