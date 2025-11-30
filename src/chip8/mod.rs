@@ -12,4 +12,10 @@ mod test_display;
 mod test_instructions;
 
 #[cfg(test)]
+mod test_execute_digits;
+
+#[cfg(test)]
+mod test_execute_flags;
+
+#[cfg(test)]
 mod test_processor;

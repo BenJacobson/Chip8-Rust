@@ -147,6 +147,10 @@ impl Processor {
                 self.exit = true;
             }
             Instruction::Jump { addr } => {
+                if self.registers.program_counter - 2 == addr {
+                    self.logger.log("Jump loop detected. Exiting.");
+                    self.exit = true;
+                }
                 self.registers.program_counter = addr;
             }
             Instruction::Call { addr } => {
@@ -189,37 +193,33 @@ impl Processor {
                 self.registers.general[x as usize] ^= self.registers.general[y as usize];
             }
             Instruction::AddReg { x, y } => {
-                self.registers.general[x as usize] = self.registers.general[x as usize]
-                    .wrapping_add(self.registers.general[y as usize]);
+                let x_val: u16 = self.registers.general[x as usize] as u16;
+                let y_val: u16 = self.registers.general[y as usize] as u16;
+                let total = x_val + y_val;
+                self.registers.general[x as usize] = total as u8;
+                self.registers.general[0xF] = if total > std::u8::MAX as u16 { 1 } else { 0 };
             }
             Instruction::SubReg { x, y } => {
-                self.registers.general[0xF] =
-                    match self.registers.general[x as usize] > self.registers.general[y as usize] {
-                        true => 1,
-                        false => 0,
-                    };
-                self.registers.general[x as usize] = self.registers.general[x as usize]
-                    .wrapping_sub(self.registers.general[y as usize]);
+                let x_val = self.registers.general[x as usize];
+                let y_val = self.registers.general[y as usize];
+                self.registers.general[x as usize] = x_val.wrapping_sub(y_val);
+                self.registers.general[0xF] = if x_val >= y_val { 1 } else { 0 };
             }
             Instruction::ShiftRight { x } => {
-                self.registers.general[0xF] = self.registers.general[x as usize] & 0x1;
-                self.registers.general[x as usize] >>= 1;
+                let x_val = self.registers.general[x as usize];
+                self.registers.general[x as usize] = x_val >> 1;
+                self.registers.general[0xF] = x_val & 0x1;
             }
             Instruction::SubNegReg { x, y } => {
-                self.registers.general[0xF] =
-                    match self.registers.general[y as usize] > self.registers.general[x as usize] {
-                        true => 1,
-                        false => 0,
-                    };
-                self.registers.general[x as usize] = self.registers.general[y as usize]
-                    .wrapping_sub(self.registers.general[x as usize]);
+                let x_val = self.registers.general[x as usize];
+                let y_val = self.registers.general[y as usize];
+                self.registers.general[x as usize] = y_val.wrapping_sub(x_val);
+                self.registers.general[0xF] = if y_val >= x_val { 1 } else { 0 };
             }
             Instruction::ShiftLeft { x } => {
-                self.registers.general[0xF] = match self.registers.general[x as usize] & 0x80 {
-                    0 => 0,
-                    _ => 1,
-                };
-                self.registers.general[x as usize] <<= 1;
+                let x_val = self.registers.general[x as usize];
+                self.registers.general[x as usize] = x_val << 1;
+                self.registers.general[0xF] = if x_val & 0x80 != 0 { 1 } else { 0 };
             }
             Instruction::SkipRegNotEqualsReg { x, y } => {
                 if self.registers.general[x as usize] != self.registers.general[y as usize] {
