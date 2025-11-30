@@ -1,4 +1,3 @@
-use super::bit_manipulation::*;
 use super::display::*;
 use super::instructions::*;
 use crate::logger::Logger;
@@ -10,6 +9,7 @@ pub struct Processor {
     logger: Logger,
     registers: Registers,
     memory: [u8; 4096],
+    stack: [u16; 16],
     keys: u16,
     wait_for_keys: bool,
     exit: bool,
@@ -20,7 +20,7 @@ struct Registers {
     general: [u8; 16],
     pointer: u16,
     program_counter: u16,
-    stack_pointer: u16,
+    stack_pointer: usize,
     delay_timer: u8,
     sound_timer: u8,
 }
@@ -72,6 +72,7 @@ impl Processor {
                 sound_timer: 0,
             },
             memory: [0; 4096],
+            stack: [0; 16],
             keys: 0,
             wait_for_keys: false,
             exit: false,
@@ -139,8 +140,8 @@ impl Processor {
                 }
             }
             Instruction::Return => {
-                self.registers.program_counter = self.registers.stack_pointer;
                 self.registers.stack_pointer -= 1;
+                self.registers.program_counter = self.stack[self.registers.stack_pointer];
             }
             Instruction::Exit => {
                 self.exit = true;
@@ -149,10 +150,8 @@ impl Processor {
                 self.registers.program_counter = addr;
             }
             Instruction::Call { addr } => {
+                self.stack[self.registers.stack_pointer] = self.registers.program_counter;
                 self.registers.stack_pointer += 1;
-                let (byte1, byte2) = get_bytes(self.registers.program_counter);
-                self.memory[self.registers.stack_pointer as usize] = byte1;
-                self.memory[self.registers.stack_pointer as usize] = byte2;
                 self.registers.program_counter = addr;
             }
             Instruction::SkipRegEqualsImm { x, byte } => {
@@ -174,7 +173,8 @@ impl Processor {
                 self.registers.general[x as usize] = byte;
             }
             Instruction::AddImmToReg { x, byte } => {
-                self.registers.general[x as usize] += byte;
+                self.registers.general[x as usize] =
+                    self.registers.general[x as usize].wrapping_add(byte);
             }
             Instruction::LoadRegToReg { x, y } => {
                 self.registers.general[x as usize] = self.registers.general[y as usize];
@@ -189,7 +189,8 @@ impl Processor {
                 self.registers.general[x as usize] ^= self.registers.general[y as usize];
             }
             Instruction::AddReg { x, y } => {
-                self.registers.general[x as usize] += self.registers.general[y as usize];
+                self.registers.general[x as usize] = self.registers.general[x as usize]
+                    .wrapping_add(self.registers.general[y as usize]);
             }
             Instruction::SubReg { x, y } => {
                 self.registers.general[0xF] =
@@ -197,7 +198,8 @@ impl Processor {
                         true => 1,
                         false => 0,
                     };
-                self.registers.general[x as usize] -= self.registers.general[y as usize];
+                self.registers.general[x as usize] = self.registers.general[x as usize]
+                    .wrapping_sub(self.registers.general[y as usize]);
             }
             Instruction::ShiftRight { x } => {
                 self.registers.general[0xF] = self.registers.general[x as usize] & 0x1;
@@ -209,8 +211,8 @@ impl Processor {
                         true => 1,
                         false => 0,
                     };
-                self.registers.general[x as usize] =
-                    self.registers.general[y as usize] - self.registers.general[x as usize];
+                self.registers.general[x as usize] = self.registers.general[y as usize]
+                    .wrapping_sub(self.registers.general[x as usize]);
             }
             Instruction::ShiftLeft { x } => {
                 self.registers.general[0xF] = match self.registers.general[x as usize] & 0x80 {

@@ -1,10 +1,3 @@
-pub fn get_bytes(word: u16) -> (u8, u8) {
-    return (
-        (word >> 8).try_into().unwrap(),
-        (word & 0xFF).try_into().unwrap(),
-    );
-}
-
 pub fn get_nibbles(byte: u8) -> (u8, u8) {
     return (byte >> 4, byte & 0xF);
 }
