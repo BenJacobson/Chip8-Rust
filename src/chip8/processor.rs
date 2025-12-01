@@ -267,8 +267,8 @@ impl Processor {
                             [(self.registers.pointer as usize) + (i as usize)]
                             >> (7 - j))
                             & 1;
-                        let col = self.registers.general[x as usize] + j;
-                        let row = self.registers.general[y as usize] + i;
+                        let col = self.registers.general[x as usize].wrapping_add(j);
+                        let row = self.registers.general[y as usize].wrapping_add(i);
                         let (display_byte, display_bit) = get_display_bit(col, row);
                         let before = self.memory[DISPLAY_MEM_ADDR + display_byte];
                         self.memory[DISPLAY_MEM_ADDR + display_byte] ^= sprite_bit << display_bit;

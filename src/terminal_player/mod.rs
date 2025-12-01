@@ -2,6 +2,7 @@ use device_query::DeviceQuery;
 use device_query::DeviceState;
 use device_query::Keycode;
 use itertools::Itertools;
+use std::thread;
 use std::time::Duration;
 use std::time::Instant;
 
@@ -13,7 +14,8 @@ pub struct TerminalPlayer {
     prev_output: String,
 }
 
-const TICK_MICROS: u32 = 16666;
+const THROTTLE_MICROS: u32 = 10000;
+const TICK_MICROS: u32 = 33333;
 
 const KEY_MAP: [(Keycode, Chip8Key); 16] = [
     (Keycode::Key1, Chip8Key::_0),
@@ -46,14 +48,20 @@ impl TerminalPlayer {
     pub fn run(&mut self, program: &[u8]) {
         self.chip8.initialize(program);
 
-        let mut instant = Instant::now();
+        let mut last_frame = Instant::now();
+        let mut last_throttle = Instant::now();
         while !self.chip8.run_next_instruction() {
-            let elapsed_micros = instant.elapsed().subsec_micros();
-            if elapsed_micros >= TICK_MICROS {
+            let elapsed_micros_throttle = last_throttle.elapsed().subsec_micros();
+            if elapsed_micros_throttle >= THROTTLE_MICROS {
+                // Yield thread and immeidately continue.
+                thread::sleep(Duration::from_nanos(1));
+            }
+            let elapsed_micros_frame = last_frame.elapsed().subsec_micros();
+            if elapsed_micros_frame >= TICK_MICROS {
                 self.chip8.tick_timers();
                 self.chip8.set_keys(self.get_keys_pressed());
                 self.print_display();
-                instant += Duration::from_micros(TICK_MICROS.into());
+                last_frame += Duration::from_micros(TICK_MICROS.into());
             }
         }
         self.print_display();
