@@ -49,19 +49,16 @@ fn test_execute_flags() {
     processor.initialize(&program);
     while !processor.run_next_instruction() {}
     let display = processor.get_display();
-    let display_data: Vec<bool> = (0..display.height)
-        .map(|i| (0..display.width).map(move |j| (i, j)))
-        .flatten()
-        .map(|(i, j)| display.get_pixel(i, j))
+    let expected_display: Vec<&str> = RENDER_FLAGS_DISPLAY
+        .trim()
+        .split_ascii_whitespace()
         .collect();
 
-    let expected_display_data: Vec<bool> = RENDER_FLAGS_DISPLAY
-        .chars()
-        .filter(|c| !c.is_whitespace())
-        .map(|c| c != '.')
-        .collect();
-    assert_eq!(expected_display_data.len(), display_data.len());
-    for (expected_bit, display_bit) in expected_display_data.into_iter().zip(display_data) {
-        assert_eq!(expected_bit, display_bit);
+    for i in 0..expected_display.len() {
+        let row = expected_display[i];
+        for j in 0..row.len() {
+            let pixel = row.chars().nth(j).unwrap() != '.';
+            assert_eq!(pixel, display.get_pixel(i, j));
+        }
     }
 }

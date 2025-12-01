@@ -1,5 +1,6 @@
 use super::display::*;
 use super::instructions::*;
+use super::key::{keys_to_key_number, Keys};
 use crate::logger::Logger;
 
 use fastrand;
@@ -10,8 +11,8 @@ pub struct Processor {
     registers: Registers,
     memory: [u8; 4096],
     stack: [u16; 16],
-    keys: u16,
-    wait_for_keys: bool,
+    keys: Keys,
+    wait_for_key: WaitForKey,
     exit: bool,
 }
 
@@ -23,6 +24,12 @@ struct Registers {
     stack_pointer: usize,
     delay_timer: u8,
     sound_timer: u8,
+}
+
+#[derive(Debug)]
+enum WaitForKey {
+    NotWaiting,
+    Waiting { x: u8 },
 }
 
 const DIGIT_SPRITES: [u8; 80] = [
@@ -74,7 +81,7 @@ impl Processor {
             memory: [0; 4096],
             stack: [0; 16],
             keys: 0,
-            wait_for_keys: false,
+            wait_for_key: WaitForKey::NotWaiting,
             exit: false,
         }
     }
@@ -92,6 +99,10 @@ impl Processor {
     pub fn run_next_instruction(&mut self) -> bool {
         if self.exit {
             return true;
+        }
+
+        if let WaitForKey::Waiting { x: _ } = self.wait_for_key {
+            return false;
         }
 
         let byte1 = self.memory[self.registers.program_counter as usize];
@@ -128,7 +139,20 @@ impl Processor {
         return self.registers.sound_timer > 0;
     }
 
-    pub fn set_keys(&mut self, keys: u16) -> () {
+    pub fn set_keys(&mut self, keys: Keys) -> () {
+        if keys != self.keys {
+            self.logger
+                .log(format!("Set new keys: {:#b}", keys).as_str());
+        }
+
+        if let WaitForKey::Waiting { x } = self.wait_for_key {
+            let pressed = keys & !self.keys;
+            if pressed != 0 {
+                self.registers.general[x as usize] = keys_to_key_number(pressed);
+                self.wait_for_key = WaitForKey::NotWaiting;
+            }
+        }
+
         self.keys = keys;
     }
 
@@ -257,7 +281,7 @@ impl Processor {
                 self.registers.general[0xF] = if erase { 1 } else { 0 };
             }
             Instruction::SkipKeyPressed { x } => {
-                if self.keys & (1 << self.registers.general[x as usize]) > 0 {
+                if self.keys & (1 << self.registers.general[x as usize]) != 0 {
                     self.registers.program_counter += 2;
                 }
             }
@@ -270,7 +294,7 @@ impl Processor {
                 self.registers.general[x as usize] = self.registers.delay_timer;
             }
             Instruction::LoadNextKeyPress { x } => {
-                self.wait_for_keys = true;
+                self.wait_for_key = WaitForKey::Waiting { x };
             }
             Instruction::LoadRegToDelayTimer { x } => {
                 self.registers.delay_timer = self.registers.general[x as usize];

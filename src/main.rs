@@ -1,6 +1,6 @@
 mod chip8;
-mod terminal_player;
 mod logger;
+mod terminal_player;
 
 use logger::file_logger;
 use logger::Logger;
