@@ -40,7 +40,7 @@ XXXX............................................................
 
 #[test]
 fn test_execute_key_press_0() {
-    let filepath = "./src/chip8/test_execute_key_press.ch8";
+    let filepath = "./src/test_execute_key_press.ch8";
     let program = fs::read(filepath).expect(format!("Failed to open file: {}", filepath).as_str());
 
     let logger = Logger::new(Box::new(|_| ()));
@@ -103,7 +103,7 @@ XXXX.XXX..XXXX.X................................................
 
 #[test]
 fn test_execute_key_press_all() {
-    let filepath = "./src/chip8/test_execute_key_press.ch8";
+    let filepath = "./src/test_execute_key_press.ch8";
     let program = fs::read(filepath).expect(format!("Failed to open file: {}", filepath).as_str());
 
     let logger = Logger::new(Box::new(|_| ()));

@@ -6,7 +6,7 @@ use std::thread;
 use std::time::Duration;
 use std::time::Instant;
 
-use crate::chip8::*;
+use chip8::*;
 
 pub struct TerminalPlayer {
     chip8: Chip8,

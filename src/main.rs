@@ -1,9 +1,7 @@
-mod chip8;
-mod logger;
 mod terminal_player;
 
-use logger::file_logger;
-use logger::Logger;
+use chip8::logger::file_logger;
+use chip8::logger::Logger;
 
 use std::env;
 use std::fs;

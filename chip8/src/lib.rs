@@ -2,11 +2,12 @@ mod bit_manipulation;
 mod display;
 mod instructions;
 mod key;
+pub mod logger;
 mod processor;
 
-pub use processor::Processor as Chip8;
 pub use key::Key as Chip8Key;
 pub use key::Keys as Chip8Keys;
+pub use processor::Processor as Chip8;
 
 #[cfg(test)]
 mod test_display;

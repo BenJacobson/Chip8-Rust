@@ -41,7 +41,7 @@ XXX..X..X.X.XXX.X.X...X...XXX..X...X...............X....X.X.XXX.
 #[test]
 fn test_execute_flags() {
     // Flags test copied from https://github.com/Timendus/chip8-test-suite?tab=readme-ov-file#flags-test
-    let filepath= "./src/chip8/test_execute_flags.ch8";
+    let filepath= "./src/test_execute_flags.ch8";
     let program = fs::read(filepath).expect(format!("Failed to open file: {}", filepath).as_str());
 
     let logger = Logger::new(Box::new(|_| ()));

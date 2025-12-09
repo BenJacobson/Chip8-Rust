@@ -6,9 +6,17 @@ version = 4
 name = "Chip8-Rust"
 version = "0.1.0"
 dependencies = [
+ "chip8",
  "device_query",
  "fastrand",
  "itertools",
+]
+
+[[package]]
+name = "chip8"
+version = "0.1.0"
+dependencies = [
+ "fastrand",
 ]
 
 [[package]]
