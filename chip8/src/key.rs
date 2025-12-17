@@ -20,18 +20,6 @@ pub enum Key {
 
 pub type Keys = u16;
 
-pub fn key_number_to_keys(x: u8) -> Keys {
-    if x > 15 {
-        0
-    } else {
-        1 << x
-    }
-}
-
-pub fn keys_has_any_key(keys1: Keys, keys2: Keys) -> bool {
-    return keys1 & keys2 != 0;
-}
-
 pub fn keys_to_key_number(keys: Keys) -> u8 {
     for i in 0..16 {
         if keys & (1 << i) != 0 {

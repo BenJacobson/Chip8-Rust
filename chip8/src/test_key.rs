@@ -1,32 +1,26 @@
 use super::key::*;
 
 #[test]
-fn test_convert_key_to_keys() {
-    assert_eq!(key_number_to_keys(0x0), Key::_0 as u16);
-    assert_eq!(key_number_to_keys(0x1), Key::_1 as u16);
-    assert_eq!(key_number_to_keys(0x2), Key::_2 as u16);
-    assert_eq!(key_number_to_keys(0x3), Key::_3 as u16);
-    assert_eq!(key_number_to_keys(0x4), Key::_4 as u16);
-    assert_eq!(key_number_to_keys(0x5), Key::_5 as u16);
-    assert_eq!(key_number_to_keys(0x6), Key::_6 as u16);
-    assert_eq!(key_number_to_keys(0x7), Key::_7 as u16);
-    assert_eq!(key_number_to_keys(0x8), Key::_8 as u16);
-    assert_eq!(key_number_to_keys(0x9), Key::_9 as u16);
-    assert_eq!(key_number_to_keys(0xA), Key::_A as u16);
-    assert_eq!(key_number_to_keys(0xB), Key::_B as u16);
-    assert_eq!(key_number_to_keys(0xC), Key::_C as u16);
-    assert_eq!(key_number_to_keys(0xD), Key::_D as u16);
-    assert_eq!(key_number_to_keys(0xE), Key::_E as u16);
-    assert_eq!(key_number_to_keys(0xF), Key::_F as u16);
+fn test_single_keys_to_key_number() {
+    assert_eq!(0x0, keys_to_key_number(Key::_0 as u16));
+    assert_eq!(0x1, keys_to_key_number(Key::_1 as u16));
+    assert_eq!(0x2, keys_to_key_number(Key::_2 as u16));
+    assert_eq!(0x3, keys_to_key_number(Key::_3 as u16));
+    assert_eq!(0x4, keys_to_key_number(Key::_4 as u16));
+    assert_eq!(0x5, keys_to_key_number(Key::_5 as u16));
+    assert_eq!(0x6, keys_to_key_number(Key::_6 as u16));
+    assert_eq!(0x7, keys_to_key_number(Key::_7 as u16));
+    assert_eq!(0x8, keys_to_key_number(Key::_8 as u16));
+    assert_eq!(0x9, keys_to_key_number(Key::_9 as u16));
+    assert_eq!(0xA, keys_to_key_number(Key::_A as u16));
+    assert_eq!(0xB, keys_to_key_number(Key::_B as u16));
+    assert_eq!(0xC, keys_to_key_number(Key::_C as u16));
+    assert_eq!(0xD, keys_to_key_number(Key::_D as u16));
+    assert_eq!(0xE, keys_to_key_number(Key::_E as u16));
+    assert_eq!(0xF, keys_to_key_number(Key::_F as u16));
 }
 
 #[test]
-fn test_stable_conversion() {
-    for i in 0..16 {
-        assert!(keys_has_any_key(
-            key_number_to_keys(i),
-            key_number_to_keys(i)
-        ));
-        assert_eq!(i, keys_to_key_number(key_number_to_keys(i)));
-    }
+fn test_multiple_keys_to_key_number() {
+    assert_eq!(0xA, keys_to_key_number((Key::_A as u16) | (Key::_B as u16)));
 }
