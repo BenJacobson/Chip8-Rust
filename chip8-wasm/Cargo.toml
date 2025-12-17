@@ -1,0 +1,11 @@
+[package]
+name = "chip8-wasm"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+chip8 = { path = "../chip8" }
+wasm-bindgen = "0.2"
