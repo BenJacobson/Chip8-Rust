@@ -139,7 +139,7 @@ XXXX.XXX..XXXX.X................................................
 
 #[test]
 fn test_render_digits() {
-    let logger = Logger::new(Box::new(|_| ()));
+    let logger = Logger::new_null_logger();
     let mut processor = Processor::new(logger);
     processor.initialize(&RENDER_DIGITS_PROGRAM);
     while !processor.run_next_instruction() {}

@@ -55,6 +55,7 @@ impl TerminalPlayer {
             if elapsed_micros_throttle >= THROTTLE_MICROS {
                 // Yield thread and immeidately continue.
                 thread::sleep(Duration::from_nanos(1));
+                last_throttle += Duration::from_micros(THROTTLE_MICROS.into());
             }
             let elapsed_micros_frame = last_frame.elapsed().subsec_micros();
             if elapsed_micros_frame >= TICK_MICROS {

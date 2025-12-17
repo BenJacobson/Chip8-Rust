@@ -1,6 +1,6 @@
 use super::display::*;
 use super::instructions::*;
-use super::key::{keys_to_key_number, Keys};
+use super::key::{Keys, keys_to_key_number};
 use crate::logger::Logger;
 
 use fastrand;
@@ -67,7 +67,8 @@ fn get_display_bit(x: u8, y: u8) -> (usize, usize) {
 }
 
 impl Processor {
-    pub fn new(logger: Logger) -> Self {
+    pub fn new(mut logger: Logger) -> Self {
+        logger.log("Processor::new");
         Self {
             logger,
             registers: Registers {

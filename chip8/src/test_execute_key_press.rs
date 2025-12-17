@@ -43,7 +43,7 @@ fn test_execute_key_press_0() {
     let filepath = "./src/test_execute_key_press.ch8";
     let program = fs::read(filepath).expect(format!("Failed to open file: {}", filepath).as_str());
 
-    let logger = Logger::new(Box::new(|_| ()));
+    let logger = Logger::new_null_logger();
     let mut processor = Processor::new(logger);
     processor.initialize(&program);
     processor.set_keys(0b1);
@@ -106,7 +106,7 @@ fn test_execute_key_press_all() {
     let filepath = "./src/test_execute_key_press.ch8";
     let program = fs::read(filepath).expect(format!("Failed to open file: {}", filepath).as_str());
 
-    let logger = Logger::new(Box::new(|_| ()));
+    let logger = Logger::new_null_logger();
     let mut processor = Processor::new(logger);
     processor.initialize(&program);
     processor.set_keys(0b1111111111111111);
