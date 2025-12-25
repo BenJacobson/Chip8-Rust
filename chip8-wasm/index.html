@@ -1,16 +1,82 @@
 <!doctype html>
-<html lang="en-US">
-  <head>
-    <meta charset="utf-8" />
-    <title>chip8-wasm example</title>
-  </head>
-  <body>
-    <script type="module">
-      import init, { start_now } from "./pkg/chip8_wasm.js";
+<html lang='en-US'>
 
-      init().then(() => {
-        start_now();
-      });
-    </script>
-  </body>
+<head>
+  <meta charset='utf-8' />
+  <title>chip8-wasm example</title>
+</head>
+
+<body>
+  <script>
+    async function fetchAsUint8Array(url) {
+      try {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const arrayBuffer = await response.arrayBuffer();
+        const uint8Array = new Uint8Array(arrayBuffer);
+        return uint8Array;
+      } catch (error) {
+        console.error(`Error fetching data from ${url}: ${error}`);
+        throw error;
+      }
+    }
+  </script>
+  <script type='module'>
+    import init, { WasmChip8 } from './pkg/chip8_wasm.js';
+
+    await init();
+
+    const chip8 = WasmChip8.new();
+    setInterval(() => {
+      chip8.tick_timers();
+      chip8.run_instructions(100);
+    }, 16);
+
+    const counterProgram = await fetchAsUint8Array('/pkg/counter.ch8');
+    chip8.load_program(counterProgram);
+
+    const display = chip8.get_display();
+    const height = display.get_height();
+    const width = display.get_width();
+    const cellSize = 16;
+
+    const canvas = document.createElement('canvas');
+    document.body.append(canvas);
+    document.body.style.backgroundColor = '#000';
+    canvas.height = height * cellSize;
+    canvas.width = width * cellSize;
+    const ctx = canvas.getContext('2d');
+
+    function renderDisplay() {
+      ctx.beginPath();
+
+      for (let row = 0; row < height; row++) {
+        for (let col = 0; col < width; col++) {
+          ctx.fillStyle = display.get_pixel(col, row)
+            ? '#fff'
+            : '#000';
+
+          ctx.fillRect(
+            col * cellSize,
+            row * cellSize,
+            cellSize,
+            cellSize
+          );
+        }
+      }
+
+      ctx.stroke();
+    };
+
+    const renderLoop = () => {
+      renderDisplay();
+      requestAnimationFrame(renderLoop);
+    };
+    renderLoop();
+  </script>
+</body>
+
 </html>
