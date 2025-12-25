@@ -35,7 +35,7 @@
       chip8.run_instructions(100);
     }, 16);
 
-    const counterProgram = await fetchAsUint8Array('/pkg/counter.ch8');
+    const counterProgram = await fetchAsUint8Array('./pkg/counter.ch8');
     chip8.load_program(counterProgram);
 
     const display = chip8.get_display();
