@@ -1,4 +1,4 @@
 **/*.log
 **/target
-/programs/bin
+**/bin
 notes.txt

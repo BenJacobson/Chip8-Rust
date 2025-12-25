@@ -1,5 +1,5 @@
 pub struct Display<'a> {
-    data: &'a [u8],
+    pub data: &'a [u8],
     pub width: usize,
     pub height: usize,
 }

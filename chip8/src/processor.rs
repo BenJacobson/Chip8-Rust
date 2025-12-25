@@ -1,3 +1,4 @@
+use super::bit_manipulation::get_display_bit;
 use super::display::*;
 use super::instructions::*;
 use super::key::{Keys, keys_to_key_number};
@@ -5,10 +6,36 @@ use crate::logger::Logger;
 
 use fastrand;
 
+const DIGIT_SPRITES: [u8; 80] = [
+    0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
+    0x20, 0x60, 0x20, 0x20, 0x70, // 1
+    0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
+    0xF0, 0x10, 0xF0, 0x10, 0xF0, // 3
+    0x90, 0x90, 0xF0, 0x10, 0x10, // 4
+    0xF0, 0x80, 0xF0, 0x10, 0xF0, // 5
+    0xF0, 0x80, 0xF0, 0x90, 0xF0, // 6
+    0xF0, 0x10, 0x20, 0x40, 0x40, // 7
+    0xF0, 0x90, 0xF0, 0x90, 0xF0, // 8
+    0xF0, 0x90, 0xF0, 0x10, 0xF0, // 9
+    0xF0, 0x90, 0xF0, 0x90, 0x90, // A
+    0xE0, 0x90, 0xE0, 0x90, 0xE0, // B
+    0xF0, 0x80, 0x80, 0x80, 0xF0, // C
+    0xE0, 0x90, 0x90, 0x90, 0xE0, // D
+    0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
+    0xF0, 0x80, 0xF0, 0x80, 0x80, // F
+];
+
+const DIGIT_SPRITES_MEM_ADDR: usize = 0x0;
+const DISPLAY_BYTES: usize = (DISPLAY_PIXELS_X * DISPLAY_PIXELS_Y + 0x7) >> 3;
+const DISPLAY_PIXELS_X: usize = 64;
+const DISPLAY_PIXELS_Y: usize = 32;
+const PROGRAM_MEM_ADDR: usize = 0x200;
+
 #[derive(Debug)]
 pub struct Processor {
     logger: Logger,
     registers: Registers,
+    display: [u8; DISPLAY_BYTES],
     memory: [u8; 4096],
     stack: [u16; 16],
     keys: Keys,
@@ -32,40 +59,6 @@ enum WaitForKey {
     Waiting { x: u8 },
 }
 
-const DIGIT_SPRITES: [u8; 80] = [
-    0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
-    0x20, 0x60, 0x20, 0x20, 0x70, // 1
-    0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
-    0xF0, 0x10, 0xF0, 0x10, 0xF0, // 3
-    0x90, 0x90, 0xF0, 0x10, 0x10, // 4
-    0xF0, 0x80, 0xF0, 0x10, 0xF0, // 5
-    0xF0, 0x80, 0xF0, 0x90, 0xF0, // 6
-    0xF0, 0x10, 0x20, 0x40, 0x40, // 7
-    0xF0, 0x90, 0xF0, 0x90, 0xF0, // 8
-    0xF0, 0x90, 0xF0, 0x10, 0xF0, // 9
-    0xF0, 0x90, 0xF0, 0x90, 0x90, // A
-    0xE0, 0x90, 0xE0, 0x90, 0xE0, // B
-    0xF0, 0x80, 0x80, 0x80, 0xF0, // C
-    0xE0, 0x90, 0x90, 0x90, 0xE0, // D
-    0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
-    0xF0, 0x80, 0xF0, 0x80, 0x80, // F
-];
-
-const DIGIT_SPRITES_MEM_ADDR: usize = 0x0;
-const DISPLAY_BYTES: usize = (DISPLAY_PIXELS_X * DISPLAY_PIXELS_Y + 7) >> 3;
-const DISPLAY_MEM_ADDR: usize = DIGIT_SPRITES.len();
-const DISPLAY_PIXELS_X: usize = 64;
-const DISPLAY_PIXELS_Y: usize = 32;
-const PROGRAM_MEM_ADDR: usize = 0x200;
-
-/// @return the (byte, bit) to index into display memory.
-fn get_display_bit(x: u8, y: u8) -> (usize, usize) {
-    let bit = DISPLAY_PIXELS_X * (y as usize) + (x as usize);
-    let byte_index = bit >> 3;
-    let bit_index = 7 - (bit & 0x7);
-    return (byte_index, bit_index);
-}
-
 impl Processor {
     pub fn new(mut logger: Logger) -> Self {
         logger.log("Processor::new");
@@ -79,6 +72,7 @@ impl Processor {
                 delay_timer: 0,
                 sound_timer: 0,
             },
+            display: [0; DISPLAY_BYTES],
             memory: [0; 4096],
             stack: [0; 16],
             keys: 0,
@@ -88,13 +82,23 @@ impl Processor {
     }
 
     pub fn initialize(&mut self, program: &[u8]) {
-        for i in 0..DIGIT_SPRITES.len() {
-            self.memory[DIGIT_SPRITES_MEM_ADDR + i] = DIGIT_SPRITES[i];
-        }
-        for i in 0..program.len() {
-            self.memory[PROGRAM_MEM_ADDR + i] = program[i];
-        }
+        self.logger.log("Processor::initialize");
+        self.registers.general.fill(0);
+        self.registers.pointer = 0;
         self.registers.program_counter = PROGRAM_MEM_ADDR as u16;
+        self.registers.stack_pointer = 0;
+        self.registers.delay_timer = 0;
+        self.registers.sound_timer = 0;
+        self.display.fill(0);
+        self.stack.fill(0);
+        self.keys = 0;
+        self.wait_for_key = WaitForKey::NotWaiting;
+        self.exit = false;
+
+        self.memory.fill(0);
+        self.memory[DIGIT_SPRITES_MEM_ADDR..DIGIT_SPRITES_MEM_ADDR + DIGIT_SPRITES.len()]
+            .copy_from_slice(&DIGIT_SPRITES);
+        self.memory[PROGRAM_MEM_ADDR..PROGRAM_MEM_ADDR + program.len()].copy_from_slice(program);
     }
 
     pub fn run_next_instruction(&mut self) -> bool {
@@ -123,8 +127,7 @@ impl Processor {
     }
 
     pub fn get_display<'a>(&'a self) -> Display<'a> {
-        let data = &self.memory[DISPLAY_MEM_ADDR..DISPLAY_MEM_ADDR + DISPLAY_BYTES];
-        Display::new(data, DISPLAY_PIXELS_X, DISPLAY_PIXELS_Y)
+        Display::new(&self.display, DISPLAY_PIXELS_X, DISPLAY_PIXELS_Y)
     }
 
     pub fn tick_timers(&mut self) -> () {
@@ -160,9 +163,7 @@ impl Processor {
     fn execute_instruction(&mut self, instruction: Instruction) -> () {
         match instruction {
             Instruction::ClearDisplay => {
-                for i in 0..DISPLAY_BYTES {
-                    self.memory[DISPLAY_MEM_ADDR + i] = 0;
-                }
+                self.display.fill(0);
             }
             Instruction::Return => {
                 self.registers.stack_pointer -= 1;
@@ -270,10 +271,10 @@ impl Processor {
                             & 1;
                         let col = self.registers.general[x as usize].wrapping_add(j);
                         let row = self.registers.general[y as usize].wrapping_add(i);
-                        let (display_byte, display_bit) = get_display_bit(col, row);
-                        let before = self.memory[DISPLAY_MEM_ADDR + display_byte];
-                        self.memory[DISPLAY_MEM_ADDR + display_byte] ^= sprite_bit << display_bit;
-                        let after = self.memory[DISPLAY_MEM_ADDR + display_byte];
+                        let (display_byte, display_bit) = get_display_bit(col, row, DISPLAY_PIXELS_X);
+                        let before = self.display[display_byte];
+                        self.display[display_byte] ^= sprite_bit << display_bit;
+                        let after = self.display[display_byte];
                         if before > after {
                             erase = true;
                         }
