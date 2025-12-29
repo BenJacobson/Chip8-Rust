@@ -1,0 +1,10 @@
+[package]
+name = "chip8-terminal"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+chip8 = { path = "../chip8" }
+device_query = "4.0.1"
+fastrand = "2.3.0"
+itertools = "0.14.0"
