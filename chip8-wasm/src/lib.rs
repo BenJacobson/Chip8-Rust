@@ -5,7 +5,6 @@ mod wasm_log_source;
 use chip8::Chip8;
 use chip8::Chip8Display;
 use chip8::Chip8Keys;
-use chip8::bit_manipulation::get_display_bit;
 use chip8::logger::Logger;
 use wasm_log_source::WasmLogSource;
 
@@ -47,6 +46,13 @@ impl WasmDisplay {
         // code is responsible for managing this lifetime.
         unsafe { *self.data.offset(byte as isize) & (1 << bit) != 0 }
     }
+}
+
+fn get_display_bit(x: u8, y: u8, row_size: usize) -> (usize, usize) {
+    let bit = row_size * (y as usize) + (x as usize);
+    let byte_index = bit >> 3;
+    let bit_index = 7 - (bit & 0x7);
+    return (byte_index, bit_index);
 }
 
 #[wasm_bindgen]

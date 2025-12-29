@@ -1,6 +1,4 @@
-pub mod bit_manipulation;
 mod display;
-mod instructions;
 mod key;
 pub mod logger;
 mod processor;
@@ -21,9 +19,6 @@ mod test_execute_flags;
 
 #[cfg(test)]
 mod test_execute_key_press;
-
-#[cfg(test)]
-mod test_instructions;
 
 #[cfg(test)]
 mod test_key;

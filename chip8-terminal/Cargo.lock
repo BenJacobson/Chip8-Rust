@@ -6,8 +6,13 @@ version = 4
 name = "chip8"
 version = "0.1.0"
 dependencies = [
+ "chip8-instructions",
  "fastrand",
 ]
+
+[[package]]
+name = "chip8-instructions"
+version = "0.1.0"
 
 [[package]]
 name = "chip8-terminal"

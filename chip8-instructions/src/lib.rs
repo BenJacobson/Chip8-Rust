@@ -1,5 +1,3 @@
-use super::bit_manipulation::*;
-
 #[derive(Debug, PartialEq)]
 pub enum Instruction {
     Unknown { byte1: u8, byte2: u8 },
@@ -130,3 +128,22 @@ pub fn decode_instruction(byte1: u8, byte2: u8) -> Instruction {
         _ => Instruction::Unknown { byte1, byte2 },
     }
 }
+
+pub fn encode_instruction(instruction: Instruction) -> Option<(u8, u8)> {
+    match instruction {
+        Instruction::ClearDisplay => Some((0x00, 0xE0)),
+        _ => None,
+    }
+}
+
+fn get_nibbles(byte: u8) -> (u8, u8) {
+    return (byte >> 4, byte & 0xF);
+}
+
+/// Combine two bytes into a 12 bit address. This drops the high 4 bits of byte1.
+fn make_addr(byte1: u8, byte2: u8) -> u16 {
+    return ((byte1 & 0xF) as u16) << 8 | (byte2 as u16);
+}
+
+#[cfg(test)]
+mod test;

@@ -1,9 +1,8 @@
-use super::bit_manipulation::get_display_bit;
 use super::display::*;
-use super::instructions::*;
 use super::key::{Keys, keys_to_key_number};
 use crate::logger::Logger;
 
+use chip8_instructions::*;
 use fastrand;
 
 const DIGIT_SPRITES: [u8; 80] = [
@@ -271,7 +270,8 @@ impl Processor {
                             & 1;
                         let col = self.registers.general[x as usize].wrapping_add(j);
                         let row = self.registers.general[y as usize].wrapping_add(i);
-                        let (display_byte, display_bit) = get_display_bit(col, row, DISPLAY_PIXELS_X);
+                        let (display_byte, display_bit) =
+                            get_display_bit(col, row, DISPLAY_PIXELS_X);
                         let before = self.display[display_byte];
                         self.display[display_byte] ^= sprite_bit << display_bit;
                         let after = self.display[display_byte];
@@ -338,4 +338,12 @@ impl Processor {
             }
         }
     }
+}
+
+/// @return the (byte, bit) to index into display memory.
+fn get_display_bit(x: u8, y: u8, row_size: usize) -> (usize, usize) {
+    let bit = row_size * (y as usize) + (x as usize);
+    let byte_index = bit >> 3;
+    let bit_index = 7 - (bit & 0x7);
+    return (byte_index, bit_index);
 }

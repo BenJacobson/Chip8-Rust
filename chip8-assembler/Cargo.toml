@@ -1,8 +1,8 @@
 [package]
-name = "chip8"
+name = "chip8-assembler"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
 chip8-instructions = { path = "../chip8-instructions" }
-fastrand = "2.3.0"
+itertools = "0.14.0"
