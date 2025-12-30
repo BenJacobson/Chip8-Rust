@@ -1,5 +1,3 @@
-#![feature(once_cell_get_mut)]
-
 mod wasm_log_source;
 
 use chip8::Chip8;

@@ -1,0 +1,8 @@
+[workspace]
+members = [
+    "chip8",
+    "chip8-assembler",
+    "chip8-instructions",
+    "chip8-terminal",
+    "chip8-wasm",
+]
