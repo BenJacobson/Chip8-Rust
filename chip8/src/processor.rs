@@ -334,7 +334,8 @@ impl Processor {
                 }
             }
             Instruction::Unknown { byte1, byte2 } => {
-                panic!("Unknown instruction {:X} {:X}", byte1, byte2)
+                self.logger
+                    .log(format!("Unknown instruction {:X} {:X}", byte1, byte2).as_str());
             }
         }
     }

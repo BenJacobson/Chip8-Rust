@@ -1,4 +1,4 @@
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Instruction {
     Unknown { byte1: u8, byte2: u8 },
     ClearDisplay,
