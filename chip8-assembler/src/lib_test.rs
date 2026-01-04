@@ -19,6 +19,9 @@ fn test_duplicate_labels() {
 const COMMENTS_SRC: &str = "
 # comment 1
   # comment 2
+; semicolon test
+// double slash test
+@ doc comment test 
 ";
 
 #[test]

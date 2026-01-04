@@ -35,10 +35,10 @@ pub fn assemble(text: &str, mem_addr_start: u16) -> Result<Vec<u8>, Vec<Assemble
 }
 
 #[cfg(test)]
-mod test;
+mod assembler_error_test;
 
 #[cfg(test)]
-mod assembler_error_test;
+mod lib_test;
 
 #[cfg(test)]
 mod parse_test;
