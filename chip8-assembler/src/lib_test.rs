@@ -13,7 +13,7 @@ fn test_duplicate_labels() {
 
     let errors = result.unwrap_err();
     let duplicate_label_error = errors.first().unwrap();
-    assert_eq!("Label 'label1:' already used.", duplicate_label_error.message);
+    assert_eq!("Label 'label1' already used.", duplicate_label_error.message);
 }
 
 const COMMENTS_SRC: &str = "
@@ -27,7 +27,7 @@ const COMMENTS_SRC: &str = "
 #[test]
 fn test_comments() {
     let result = assemble(COMMENTS_SRC, 0, 0x100);
-    assert!(result.is_ok());
+    assert!(result.is_ok(), "Expected Ok, but got {:?}", result);
     assert_eq!(0, result.unwrap().len());
 }
 
@@ -63,19 +63,20 @@ fn test_basic_program() {
     assert_eq!(vec![97, 10, 16, 4, 1, 2, 3, 4], bytes);
 }
 
-// const PROGRAM_WITH_LABELS_SRC: &str = "
-// start:
-//   LD V1 10
-//   JP start
-// some_data:
-//   0x01 0x02 0x03 0x04
-// ";
+const JUMP_LABELS_SRC: &str = "
+some_data:
+  0x01 0x02 0x03 0x04
+here:
+  JP there
+there:
+  JP V0 here
+";
 
-// #[test]
-// fn test_program_with_labels() {
-//     let result = assemble(PROGRAM_WITH_LABELS_SRC, 0, 0x20);
-//     assert!(result.is_ok(), "Expected Ok, but got {:?}", result);
+#[test]
+fn test_jump_labels() {
+    let result = assemble(JUMP_LABELS_SRC, 0, 0x20);
+    assert!(result.is_ok(), "Expected Ok, but got {:?}", result);
     
-//     let bytes = result.unwrap();
-//     assert_eq!(vec![0x00], bytes);
-// }
+    let bytes = result.unwrap();
+    assert_eq!(vec![1, 2, 3, 4, 16, 6, 176, 4], bytes);
+}

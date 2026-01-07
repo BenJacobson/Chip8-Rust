@@ -31,12 +31,12 @@ pub fn assemble(
         next_mem_addr += statement.size;
     }
 
-    let mut labels: HashMap<&str, u16> = HashMap::new();
-    for statement in statements.iter_mut() {
-        let StatementType::Label { ref mut name } = statement.statement_type else {
+    let mut labels: HashMap<String, u16> = HashMap::new();
+    for statement in statements.iter() {
+        let StatementType::Label { .. } = statement.statement_type else {
             continue;
         };
-        *name = parse_label(statement.line.as_str(), statement.line_num)
+        let name = parse_label(statement.line.as_str(), statement.line_num)
             .map_err(|err| vec![err])?
             .to_string();
         if name.is_empty() {
@@ -62,12 +62,16 @@ pub fn assemble(
             StatementType::Instruction {
                 ref mut instruction,
             } => {
-                *instruction =
-                    parse_instruction(statement.line.as_str(), statement.line_num, mem_addr_max)
-                        .map_err(|err| vec![err])?
+                *instruction = parse_instruction(
+                    statement.line.as_str(),
+                    statement.line_num,
+                    &labels,
+                    mem_addr_max,
+                )
+                .map_err(|err| vec![err])?
             }
             StatementType::Label { ref mut name } => {
-                *name = parse_label(statement.line.as_str(), statement.line_num)
+                *name = parse_label(&statement.line, statement.line_num)
                     .map_err(|err| vec![err])?
                     .to_string();
             }

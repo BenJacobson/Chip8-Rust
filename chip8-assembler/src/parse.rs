@@ -3,6 +3,7 @@ use crate::statement::*;
 
 use chip8_instructions::Instruction;
 use itertools::Itertools;
+use std::collections::HashMap;
 
 pub fn get_partial_statement(line: &str, line_num: u16) -> Option<Statement> {
     let words = get_line_words(line);
@@ -43,7 +44,7 @@ pub fn get_partial_statement(line: &str, line_num: u16) -> Option<Statement> {
 pub fn parse_label(line: &str, line_num: u16) -> Result<&str, AssemblerError> {
     let words = get_line_words(line);
     if words.len() == 1 && words[0].ends_with(":") {
-        Ok(&words[0][..words[0].len()])
+        Ok(&words[0][..words[0].len()-1])
     } else {
         Err(AssemblerError::new_no_options(
             format!("Expected label, but got: {}", line),
@@ -65,7 +66,12 @@ pub fn parse_bytes(line: &str) -> Result<Vec<u8>, Vec<AssemblerError>> {
     }
 }
 
-pub fn parse_instruction(line: &str, line_num: u16, mem_addr_max: u16) -> Result<Instruction, AssemblerError> {
+pub fn parse_instruction(
+    line: &str,
+    line_num: u16,
+    labels: &HashMap<String, u16>,
+    mem_addr_max: u16,
+) -> Result<Instruction, AssemblerError> {
     let words = get_line_words(line);
     let Some(first_word) = words.first() else {
         return Err(AssemblerError::new_no_options(
@@ -77,7 +83,7 @@ pub fn parse_instruction(line: &str, line_num: u16, mem_addr_max: u16) -> Result
         "CLS" => Ok(Instruction::ClearDisplay),
         "RET" => Ok(Instruction::Return),
         "EXIT" => Ok(Instruction::Exit),
-        "JP" => get_jp(line, &words, line_num, mem_addr_max),
+        "JP" => get_jp(line, &words, line_num, labels, mem_addr_max),
         "CALL" => get_call(line, &words, line_num, mem_addr_max),
         "SE" => get_se(line, &words, line_num),
         "SNE" => get_sne(line, &words, line_num),
@@ -118,14 +124,26 @@ fn get_line_words(mut line: &str) -> Vec<&str> {
         .collect()
 }
 
-fn get_jp(line: &str, words: &Vec<&str>, line_num: u16, mem_addr_max: u16) -> Result<Instruction, AssemblerError> {
+fn get_jp(
+    line: &str,
+    words: &Vec<&str>,
+    line_num: u16,
+    labels: &HashMap<String, u16>,
+    mem_addr_max: u16,
+) -> Result<Instruction, AssemblerError> {
+    let get_addr = |word: &str| {
+        if let Some(addr) = labels.get(word) {
+            return Ok(*addr);
+        }
+        try_parse_addr_literal(word, mem_addr_max)
+    };
     if words.len() == 2 {
-        let addr = try_parse_addr_literal(words[1], mem_addr_max)?;
+        let addr = get_addr(words[1])?;
         return Ok(Instruction::Jump { addr });
     }
     if words.len() == 3 {
         if words[1].to_uppercase() == "V0" {
-            let addr = try_parse_addr_literal(words[2], mem_addr_max)?;
+            let addr = get_addr(words[2])?;
             return Ok(Instruction::JumpOffset { addr });
         }
     }
@@ -136,7 +154,12 @@ fn get_jp(line: &str, words: &Vec<&str>, line_num: u16, mem_addr_max: u16) -> Re
     ))
 }
 
-fn get_call(line: &str, words: &Vec<&str>, line_num: u16, mem_addr_max: u16) -> Result<Instruction, AssemblerError> {
+fn get_call(
+    line: &str,
+    words: &Vec<&str>,
+    line_num: u16,
+    mem_addr_max: u16,
+) -> Result<Instruction, AssemblerError> {
     if words.len() != 2 {
         return Err(AssemblerError::new_no_options(
             "Expected one address for a CALL instruction".to_string(),
@@ -182,7 +205,12 @@ fn get_sne(line: &str, words: &Vec<&str>, line_num: u16) -> Result<Instruction, 
     Ok(Instruction::SkipRegNotEqualsImm { x, byte })
 }
 
-fn get_ld(line: &str, words: &Vec<&str>, line_num: u16, mem_addr_max: u16) -> Result<Instruction, AssemblerError> {
+fn get_ld(
+    line: &str,
+    words: &Vec<&str>,
+    line_num: u16,
+    mem_addr_max: u16,
+) -> Result<Instruction, AssemblerError> {
     if words.len() != 3 {
         return Err(AssemblerError::new_no_options(
             "Expected two arguments for a LD instruction".to_string(),
