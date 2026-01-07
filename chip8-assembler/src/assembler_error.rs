@@ -24,22 +24,22 @@ impl AssemblerError {
 #[derive(Debug)]
 pub struct Location {
     pub line_location: Option<LineLocation>,
-    pub line_num: u32,
+    pub line_num: u16,
 }
 
 impl Location {
-    pub fn new(line_location: Option<LineLocation>, line_num: u32) -> Self {
+    pub fn new(line_location: Option<LineLocation>, line_num: u16) -> Self {
         Self {
             line_location,
             line_num,
         }
     }
 
-    pub fn new_no_options(line_location: LineLocation, line_num: u32) -> Self {
+    pub fn new_no_options(line_location: LineLocation, line_num: u16) -> Self {
         Self::new(Some(line_location), line_num)
     }
 
-    pub fn new_line_num(line_num: u32) -> Self {
+    pub fn new_line_num(line_num: u16) -> Self {
         Self::new(None, line_num)
     }
 }

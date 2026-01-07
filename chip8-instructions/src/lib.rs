@@ -129,10 +129,44 @@ pub fn decode_instruction(byte1: u8, byte2: u8) -> Instruction {
     }
 }
 
-pub fn encode_instruction(instruction: Instruction) -> Option<(u8, u8)> {
+pub fn encode_instruction(instruction: Instruction) -> (u8, u8) {
     match instruction {
-        Instruction::ClearDisplay => Some((0x00, 0xE0)),
-        _ => None,
+        Instruction::ClearDisplay => (0x00, 0xE0),
+        Instruction::Return => (0x00, 0xEE),
+        Instruction::Exit => (0x00, 0xFD),
+        Instruction::Jump { addr } => (0x10 | (addr >> 8) as u8, addr as u8),
+        Instruction::Call { addr } => (0x20 | (addr >> 8) as u8, addr as u8),
+        Instruction::SkipRegEqualsImm { x, byte } => (0x30 | x, byte),
+        Instruction::SkipRegNotEqualsImm { x, byte } => (0x40 | x, byte),
+        Instruction::SkipRegEqualsReg { x, y } => (0x50 | x, y << 4),
+        Instruction::LoadImmToReg { x, byte } => (0x60 | x, byte),
+        Instruction::AddImmToReg { x, byte } => (0x70 | x, byte),
+        Instruction::LoadRegToReg { x, y } => (0x80 | x, (y << 4) | 0x0),
+        Instruction::OrReg { x, y } => (0x80 | x, (y << 4) | 0x1),
+        Instruction::AndReg { x, y } => (0x80 | x, (y << 4) | 0x2),
+        Instruction::XorReg { x, y } => (0x80 | x, (y << 4) | 0x3),
+        Instruction::AddReg { x, y } => (0x80 | x, (y << 4) | 0x4),
+        Instruction::SubReg { x, y } => (0x80 | x, (y << 4) | 0x5),
+        Instruction::ShiftRight { x } => (0x80 | x, 0x06),
+        Instruction::SubNegReg { x, y } => (0x80 | x, (y << 4) | 0x7),
+        Instruction::ShiftLeft { x } => (0x80 | x, 0x0E),
+        Instruction::SkipRegNotEqualsReg { x, y } => (0x90 | x, y << 4),
+        Instruction::LoadImmToPointer { addr } => (0xA0 | (addr >> 8) as u8, addr as u8),
+        Instruction::JumpOffset { addr } => (0xB0 | (addr >> 8) as u8, addr as u8),
+        Instruction::Random { x, byte } => (0xC0 | x, byte),
+        Instruction::Draw { x, y, nibble } => (0xD0 | x, (y << 4) | nibble),
+        Instruction::SkipKeyPressed { x } => (0xE0 | x, 0x9E),
+        Instruction::SkipNotKeyPressed { x } => (0xE0 | x, 0xA1),
+        Instruction::LoadDelayTimerToReg { x } => (0xF0 | x, 0x07),
+        Instruction::LoadNextKeyPress { x } => (0xF0 | x, 0x0A),
+        Instruction::LoadRegToDelayTimer { x } => (0xF0 | x, 0x15),
+        Instruction::LoadRegToSoundTimer { x } => (0xF0 | x, 0x18),
+        Instruction::AddRegToPointer { x } => (0xF0 | x, 0x1E),
+        Instruction::LoadDigitSpriteToPointer { x } => (0xF0 | x, 0x29),
+        Instruction::LoadDecimalDigitsToPointer { x } => (0xF0 | x, 0x33),
+        Instruction::WriteRegToPointer { x } => (0xF0 | x, 0x55),
+        Instruction::ReadRegFromPointer { x } => (0xF0 | x, 0x65),
+        Instruction::Unknown { byte1, byte2 } => (byte1, byte2),
     }
 }
 

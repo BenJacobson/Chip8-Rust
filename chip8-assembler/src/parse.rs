@@ -1,66 +1,71 @@
-use crate::ADDR_SPACE;
-use crate::assembler_error::{AssemblerError, LineLocation, Location};
-use crate::statement::Statement;
+use crate::assembler_error::*;
+use crate::statement::*;
 
 use chip8_instructions::Instruction;
 use itertools::Itertools;
 
-pub fn parse_lines<'a>(text: &'a str) -> Result<Vec<Statement<'a>>, Vec<AssemblerError>> {
-    let (oks, errs): (Vec<Option<Statement>>, Vec<AssemblerError>) = text
-        .lines()
-        .enumerate()
-        .map(|(line_num, line)| parse_line(line, line_num as u32))
-        .partition_result();
-    if errs.len() > 0 {
-        Err(errs)
-    } else {
-        Ok(oks.into_iter().flatten().collect())
-    }
-}
-
-fn get_line_words(mut line: &str) -> Vec<&str> {
-    for comment_start in COMMENT_STARTERS.iter() {
-        line = line.split(comment_start).next().unwrap_or("");
-    }
-    line.split_whitespace()
-        .map(|word| {
-            if word.ends_with(',') {
-                &word[..word.len() - 1]
-            } else {
-                word
-            }
-        })
-        .collect()
-}
-
-fn parse_line<'a>(line: &'a str, line_num: u32) -> Result<Option<Statement<'a>>, AssemblerError> {
+pub fn get_partial_statement(line: &str, line_num: u16) -> Option<Statement> {
     let words = get_line_words(line);
-
     if words.is_empty() {
-        return Ok(None);
+        return None;
     }
-    if words.len() == 1 && words[0].ends_with(":") {
-        let label = words[0].chars().dropping_back(1).as_str();
-        if label.is_empty() {
-            return Err(AssemblerError::new_no_options(
-                "Expected a label before the colon.".to_string(),
-                Location::new(LineLocation::try_from_line_words(line, &words, 0), line_num),
-            ));
-        }
-        return Ok(Some(Statement::Label {
-            name: label,
+
+    let statement = match words[0] {
+        word if words.len() == 1 && word.ends_with(":") => Statement {
+            statement_type: StatementType::Label {
+                name: String::new(),
+            },
+            size: 0,
+            line_num,
             mem_addr: 0,
-        }));
-    }
-    parse_instruction(line, line_num).map(|instruction| {
-        Some(Statement::Instruction {
-            instruction,
+            line: line.to_string(),
+        },
+        word if try_parse_number_literal(word).is_ok() => Statement {
+            statement_type: StatementType::Bytes { data: Vec::new() },
+            size: words.len() as u16,
+            line_num,
             mem_addr: 0,
-        })
-    })
+            line: line.to_string(),
+        },
+        _ => Statement {
+            statement_type: StatementType::Instruction {
+                instruction: Instruction::Unknown { byte1: 0, byte2: 0 },
+            },
+            size: 2,
+            line_num,
+            mem_addr: 0,
+            line: line.to_string(),
+        },
+    };
+    Some(statement)
 }
 
-fn parse_instruction(line: &str, line_num: u32) -> Result<Instruction, AssemblerError> {
+pub fn parse_label(line: &str, line_num: u16) -> Result<&str, AssemblerError> {
+    let words = get_line_words(line);
+    if words.len() == 1 && words[0].ends_with(":") {
+        Ok(&words[0][..words[0].len()])
+    } else {
+        Err(AssemblerError::new_no_options(
+            format!("Expected label, but got: {}", line),
+            Location::new_line_num(line_num),
+        ))
+    }
+}
+
+pub fn parse_bytes(line: &str) -> Result<Vec<u8>, Vec<AssemblerError>> {
+    let words = get_line_words(line);
+    let (bytes, errors): (Vec<u8>, Vec<AssemblerError>) = words
+        .iter()
+        .map(|word| try_parse_byte_literal(word))
+        .partition_result();
+    if words.len() == bytes.len() {
+        Ok(bytes)
+    } else {
+        Err(errors)
+    }
+}
+
+pub fn parse_instruction(line: &str, line_num: u16, mem_addr_max: u16) -> Result<Instruction, AssemblerError> {
     let words = get_line_words(line);
     let Some(first_word) = words.first() else {
         return Err(AssemblerError::new_no_options(
@@ -72,11 +77,11 @@ fn parse_instruction(line: &str, line_num: u32) -> Result<Instruction, Assembler
         "CLS" => Ok(Instruction::ClearDisplay),
         "RET" => Ok(Instruction::Return),
         "EXIT" => Ok(Instruction::Exit),
-        "JP" => get_jp(line, &words, line_num),
-        "CALL" => get_call(line, &words, line_num),
+        "JP" => get_jp(line, &words, line_num, mem_addr_max),
+        "CALL" => get_call(line, &words, line_num, mem_addr_max),
         "SE" => get_se(line, &words, line_num),
         "SNE" => get_sne(line, &words, line_num),
-        "LD" => get_ld(line, &words, line_num),
+        "LD" => get_ld(line, &words, line_num, mem_addr_max),
         "ADD" => get_add(line, &words, line_num),
         "OR" => get_or(line, &words, line_num),
         "AND" => get_and(line, &words, line_num),
@@ -96,14 +101,31 @@ fn parse_instruction(line: &str, line_num: u32) -> Result<Instruction, Assembler
     }
 }
 
-fn get_jp(line: &str, words: &Vec<&str>, line_num: u32) -> Result<Instruction, AssemblerError> {
+/// Break lines into relevant words.
+/// Comments and commas are removed.
+fn get_line_words(mut line: &str) -> Vec<&str> {
+    for comment_start in COMMENT_STARTERS.iter() {
+        line = line.split(comment_start).next().unwrap_or("");
+    }
+    line.split_whitespace()
+        .map(|word| {
+            if word.ends_with(',') {
+                &word[..word.len() - 1]
+            } else {
+                word
+            }
+        })
+        .collect()
+}
+
+fn get_jp(line: &str, words: &Vec<&str>, line_num: u16, mem_addr_max: u16) -> Result<Instruction, AssemblerError> {
     if words.len() == 2 {
-        let addr = try_parse_addr_literal(words[1])?;
+        let addr = try_parse_addr_literal(words[1], mem_addr_max)?;
         return Ok(Instruction::Jump { addr });
     }
     if words.len() == 3 {
         if words[1].to_uppercase() == "V0" {
-            let addr = try_parse_addr_literal(words[2])?;
+            let addr = try_parse_addr_literal(words[2], mem_addr_max)?;
             return Ok(Instruction::JumpOffset { addr });
         }
     }
@@ -114,7 +136,7 @@ fn get_jp(line: &str, words: &Vec<&str>, line_num: u32) -> Result<Instruction, A
     ))
 }
 
-fn get_call(line: &str, words: &Vec<&str>, line_num: u32) -> Result<Instruction, AssemblerError> {
+fn get_call(line: &str, words: &Vec<&str>, line_num: u16, mem_addr_max: u16) -> Result<Instruction, AssemblerError> {
     if words.len() != 2 {
         return Err(AssemblerError::new_no_options(
             "Expected one address for a CALL instruction".to_string(),
@@ -122,11 +144,11 @@ fn get_call(line: &str, words: &Vec<&str>, line_num: u32) -> Result<Instruction,
         ));
     }
     Ok(Instruction::Call {
-        addr: try_parse_addr_literal(words[1])?,
+        addr: try_parse_addr_literal(words[1], mem_addr_max)?,
     })
 }
 
-fn get_se(line: &str, words: &Vec<&str>, line_num: u32) -> Result<Instruction, AssemblerError> {
+fn get_se(line: &str, words: &Vec<&str>, line_num: u16) -> Result<Instruction, AssemblerError> {
     if words.len() != 3 {
         return Err(AssemblerError::new_no_options(
             "Expected two arguments for a SE instruction".to_string(),
@@ -143,7 +165,7 @@ fn get_se(line: &str, words: &Vec<&str>, line_num: u32) -> Result<Instruction, A
     Ok(Instruction::SkipRegEqualsImm { x, byte })
 }
 
-fn get_sne(line: &str, words: &Vec<&str>, line_num: u32) -> Result<Instruction, AssemblerError> {
+fn get_sne(line: &str, words: &Vec<&str>, line_num: u16) -> Result<Instruction, AssemblerError> {
     if words.len() != 3 {
         return Err(AssemblerError::new_no_options(
             "Expected two arguments for a SNE instruction".to_string(),
@@ -160,7 +182,7 @@ fn get_sne(line: &str, words: &Vec<&str>, line_num: u32) -> Result<Instruction, 
     Ok(Instruction::SkipRegNotEqualsImm { x, byte })
 }
 
-fn get_ld(line: &str, words: &Vec<&str>, line_num: u32) -> Result<Instruction, AssemblerError> {
+fn get_ld(line: &str, words: &Vec<&str>, line_num: u16, mem_addr_max: u16) -> Result<Instruction, AssemblerError> {
     if words.len() != 3 {
         return Err(AssemblerError::new_no_options(
             "Expected two arguments for a LD instruction".to_string(),
@@ -197,7 +219,7 @@ fn get_ld(line: &str, words: &Vec<&str>, line_num: u32) -> Result<Instruction, A
     }
 
     if arg1.to_uppercase() == "I" {
-        let addr = try_parse_addr_literal(arg2)?;
+        let addr = try_parse_addr_literal(arg2, mem_addr_max)?;
         return Ok(Instruction::LoadImmToPointer { addr });
     }
 
@@ -232,7 +254,7 @@ fn get_ld(line: &str, words: &Vec<&str>, line_num: u32) -> Result<Instruction, A
     ))
 }
 
-fn get_add(line: &str, words: &Vec<&str>, line_num: u32) -> Result<Instruction, AssemblerError> {
+fn get_add(line: &str, words: &Vec<&str>, line_num: u16) -> Result<Instruction, AssemblerError> {
     if words.len() != 3 {
         return Err(AssemblerError::new_no_options(
             "Expected two arguments for an ADD instruction".to_string(),
@@ -255,7 +277,7 @@ fn get_add(line: &str, words: &Vec<&str>, line_num: u32) -> Result<Instruction, 
     Ok(Instruction::AddImmToReg { x, byte })
 }
 
-fn get_or(line: &str, words: &Vec<&str>, line_num: u32) -> Result<Instruction, AssemblerError> {
+fn get_or(line: &str, words: &Vec<&str>, line_num: u16) -> Result<Instruction, AssemblerError> {
     if words.len() != 3 {
         return Err(AssemblerError::new_no_options(
             "Expected two register arguments for an OR instruction".to_string(),
@@ -267,7 +289,7 @@ fn get_or(line: &str, words: &Vec<&str>, line_num: u32) -> Result<Instruction, A
     Ok(Instruction::OrReg { x, y })
 }
 
-fn get_and(line: &str, words: &Vec<&str>, line_num: u32) -> Result<Instruction, AssemblerError> {
+fn get_and(line: &str, words: &Vec<&str>, line_num: u16) -> Result<Instruction, AssemblerError> {
     if words.len() != 3 {
         return Err(AssemblerError::new_no_options(
             "Expected two register arguments for an AND instruction".to_string(),
@@ -279,7 +301,7 @@ fn get_and(line: &str, words: &Vec<&str>, line_num: u32) -> Result<Instruction, 
     Ok(Instruction::AndReg { x, y })
 }
 
-fn get_xor(line: &str, words: &Vec<&str>, line_num: u32) -> Result<Instruction, AssemblerError> {
+fn get_xor(line: &str, words: &Vec<&str>, line_num: u16) -> Result<Instruction, AssemblerError> {
     if words.len() != 3 {
         return Err(AssemblerError::new_no_options(
             "Expected two register arguments for a XOR instruction".to_string(),
@@ -291,7 +313,7 @@ fn get_xor(line: &str, words: &Vec<&str>, line_num: u32) -> Result<Instruction, 
     Ok(Instruction::XorReg { x, y })
 }
 
-fn get_sub(line: &str, words: &Vec<&str>, line_num: u32) -> Result<Instruction, AssemblerError> {
+fn get_sub(line: &str, words: &Vec<&str>, line_num: u16) -> Result<Instruction, AssemblerError> {
     if words.len() != 3 {
         return Err(AssemblerError::new_no_options(
             "Expected two register arguments for a SUB instruction".to_string(),
@@ -303,7 +325,7 @@ fn get_sub(line: &str, words: &Vec<&str>, line_num: u32) -> Result<Instruction, 
     Ok(Instruction::SubReg { x, y })
 }
 
-fn get_shr(line: &str, words: &Vec<&str>, line_num: u32) -> Result<Instruction, AssemblerError> {
+fn get_shr(line: &str, words: &Vec<&str>, line_num: u16) -> Result<Instruction, AssemblerError> {
     if words.len() != 2 {
         return Err(AssemblerError::new_no_options(
             "Expected one register argument for a SHR instruction".to_string(),
@@ -314,7 +336,7 @@ fn get_shr(line: &str, words: &Vec<&str>, line_num: u32) -> Result<Instruction, 
     Ok(Instruction::ShiftRight { x })
 }
 
-fn get_subn(line: &str, words: &Vec<&str>, line_num: u32) -> Result<Instruction, AssemblerError> {
+fn get_subn(line: &str, words: &Vec<&str>, line_num: u16) -> Result<Instruction, AssemblerError> {
     if words.len() != 3 {
         return Err(AssemblerError::new_no_options(
             "Expected two register arguments for a SUBN instruction".to_string(),
@@ -326,7 +348,7 @@ fn get_subn(line: &str, words: &Vec<&str>, line_num: u32) -> Result<Instruction,
     Ok(Instruction::SubNegReg { x, y })
 }
 
-fn get_shl(line: &str, words: &Vec<&str>, line_num: u32) -> Result<Instruction, AssemblerError> {
+fn get_shl(line: &str, words: &Vec<&str>, line_num: u16) -> Result<Instruction, AssemblerError> {
     if words.len() != 2 {
         return Err(AssemblerError::new_no_options(
             "Expected one register argument for a SHL instruction".to_string(),
@@ -337,7 +359,7 @@ fn get_shl(line: &str, words: &Vec<&str>, line_num: u32) -> Result<Instruction, 
     Ok(Instruction::ShiftLeft { x })
 }
 
-fn get_rnd(line: &str, words: &Vec<&str>, line_num: u32) -> Result<Instruction, AssemblerError> {
+fn get_rnd(line: &str, words: &Vec<&str>, line_num: u16) -> Result<Instruction, AssemblerError> {
     if words.len() != 3 {
         return Err(AssemblerError::new_no_options(
             "Expected a register and a byte for a RND instruction".to_string(),
@@ -349,7 +371,7 @@ fn get_rnd(line: &str, words: &Vec<&str>, line_num: u32) -> Result<Instruction, 
     Ok(Instruction::Random { x, byte })
 }
 
-fn get_drw(line: &str, words: &Vec<&str>, line_num: u32) -> Result<Instruction, AssemblerError> {
+fn get_drw(line: &str, words: &Vec<&str>, line_num: u16) -> Result<Instruction, AssemblerError> {
     if words.len() != 4 {
         return Err(AssemblerError::new_no_options(
             "Expected two registers and a nibble for a DRW instruction".to_string(),
@@ -362,7 +384,7 @@ fn get_drw(line: &str, words: &Vec<&str>, line_num: u32) -> Result<Instruction, 
     Ok(Instruction::Draw { x, y, nibble })
 }
 
-fn get_skp(line: &str, words: &Vec<&str>, line_num: u32) -> Result<Instruction, AssemblerError> {
+fn get_skp(line: &str, words: &Vec<&str>, line_num: u16) -> Result<Instruction, AssemblerError> {
     if words.len() != 2 {
         return Err(AssemblerError::new_no_options(
             "Expected one register argument for a SKP instruction".to_string(),
@@ -373,7 +395,7 @@ fn get_skp(line: &str, words: &Vec<&str>, line_num: u32) -> Result<Instruction, 
     Ok(Instruction::SkipKeyPressed { x })
 }
 
-fn get_sknp(line: &str, words: &Vec<&str>, line_num: u32) -> Result<Instruction, AssemblerError> {
+fn get_sknp(line: &str, words: &Vec<&str>, line_num: u16) -> Result<Instruction, AssemblerError> {
     if words.len() != 2 {
         return Err(AssemblerError::new_no_options(
             "Expected one register argument for a SKNP instruction".to_string(),
@@ -404,14 +426,14 @@ fn try_parse_number_literal(n_str: &str) -> Result<u64, AssemblerError> {
     })
 }
 
-fn try_parse_addr_literal(n_str: &str) -> Result<u16, AssemblerError> {
+fn try_parse_addr_literal(n_str: &str, mem_addr_max: u16) -> Result<u16, AssemblerError> {
     let n = try_parse_number_literal(n_str)?;
-    if n < ADDR_SPACE.into() {
+    if n < mem_addr_max.into() {
         Ok(n as u16)
     } else {
         Err(AssemblerError::new_message(format!(
-            "Address literal ({}) is larger than the available address space ({:x}).",
-            n_str, ADDR_SPACE
+            "Address literal ({}) is larger than the available address space (0x{:x}).",
+            n_str, mem_addr_max
         )))
     }
 }
@@ -437,7 +459,7 @@ fn try_parse_register(reg_str: &str) -> Result<u8, AssemblerError> {
         Ok(n as u8)
     } else {
         Err(AssemblerError::new_message(format!(
-            "Register literal ({}) is larger than the number of registers ({:x}).",
+            "Register literal ({}) is larger than the number of registers (0x{:x}).",
             reg_str, NUM_REGISTERS
         )))
     }
@@ -449,7 +471,7 @@ fn try_parse_byte_literal(n_str: &str) -> Result<u8, AssemblerError> {
         Ok(n as u8)
     } else {
         Err(AssemblerError::new_message(format!(
-            "Byte literal ({}) is larger than the max byte ({:x}).",
+            "Byte literal ({}) is larger than the max byte (0x{:x}).",
             n_str,
             u8::MAX
         )))
@@ -462,8 +484,8 @@ fn try_parse_nibble_literal(n_str: &str) -> Result<u8, AssemblerError> {
         Ok(n as u8)
     } else {
         Err(AssemblerError::new_message(format!(
-            "Nibble literal ({}) is larger than the max nibble ({:x}).",
-            n_str, 0xF
+            "Nibble literal ({}) is larger than the max nibble (0xF).",
+            n_str
         )))
     }
 }

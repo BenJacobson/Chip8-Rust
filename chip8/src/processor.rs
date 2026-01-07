@@ -335,7 +335,7 @@ impl Processor {
             }
             Instruction::Unknown { byte1, byte2 } => {
                 self.logger
-                    .log(format!("Unknown instruction {:X} {:X}", byte1, byte2).as_str());
+                    .log(format!("Unknown instruction 0x{:x} 0x{:x}", byte1, byte2).as_str());
             }
         }
     }

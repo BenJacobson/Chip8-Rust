@@ -1,28 +1,30 @@
-use chip8_instructions::Instruction;
+use chip8_instructions::*;
 
-#[derive(Clone, Copy)]
-pub enum Statement<'a> {
-    Label {
-        name: &'a str,
-        mem_addr: u16,
-    },
-    Instruction {
-        instruction: Instruction,
-        mem_addr: u16,
-    },
+#[derive(Clone)]
+pub struct Statement {
+    pub mem_addr: u16,
+    pub line_num: u16,
+    pub size: u16,
+    pub line: String,
+    pub statement_type: StatementType,
 }
 
-impl<'a> Statement<'a> {
-    pub fn set_mem_addr(&mut self, new_mem_addr: u16) {
-        *self = match self {
-            Statement::Label { name, .. } => Statement::Label {
-                name,
-                mem_addr: new_mem_addr,
-            },
-            Statement::Instruction { instruction, .. } => Statement::Instruction {
-                instruction: *instruction,
-                mem_addr: new_mem_addr,
-            },
-        };
+#[derive(Clone)]
+pub enum StatementType {
+    Bytes { data: Vec<u8> },
+    Instruction { instruction: Instruction },
+    Label { name: String },
+}
+
+impl Statement {
+    pub fn bytes(&self) -> Vec<u8> {
+        match self.statement_type {
+            StatementType::Bytes { ref data } => data.clone(),
+            StatementType::Instruction { instruction } => {
+                let (byte1, byte2) = encode_instruction(instruction);
+                vec![byte1, byte2]
+            }
+            StatementType::Label { .. } => Vec::new(),
+        }
     }
 }
