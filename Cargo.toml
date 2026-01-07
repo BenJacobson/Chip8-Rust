@@ -2,7 +2,9 @@
 members = [
     "chip8",
     "chip8-assembler",
+    "chip8-assembler-terminal",
     "chip8-instructions",
     "chip8-terminal",
     "chip8-wasm",
 ]
+resolver = "3"
